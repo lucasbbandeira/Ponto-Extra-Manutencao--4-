@@ -110,6 +110,13 @@ export const demoApi = {
     p.active = approve
     p.approval_status = approve ? 'approved' : 'rejected'
   },
+  async deleteEntry(id: string) {
+    const actor = demoRole()
+    if (actor.role !== 'admin' || !actor.active) throw new Error('Somente administradores podem excluir lançamentos.')
+    if (!entries.some(e => e.id === id)) throw new Error('Lançamento não encontrado.')
+    entries = entries.filter(e => e.id !== id)
+    events = events.filter(e => e.entry_id !== id)
+  },
   async deleteProfile(id: string) {
     if (id === 'admin') throw new Error('O administrador principal não pode ser excluído.')
     if (entries.some(e => e.worker_id === id)) throw new Error('Este usuário possui lançamentos. Desative o acesso em vez de excluir o perfil.')

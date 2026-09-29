@@ -105,3 +105,9 @@ export async function getHistory(id: string): Promise<Event[]> {
   check(error)
   return data as Event[]
 }
+
+export async function deleteEntry(id: string) {
+  const { data, error } = await client().from('overtime_entries').delete().eq('id', id).select('id')
+  check(error)
+  if (!data?.length) throw new Error('Lançamento não encontrado ou acesso não autorizado. Atualize a página.')
+}

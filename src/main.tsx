@@ -6,7 +6,7 @@ import {
   Mail, Menu, Plus, RotateCcw, Search, ShieldCheck, UsersRound, X,
 } from 'lucide-react'
 import { configured, supabase, getProfile, loadData, submitEntry, reviseEntry,
-  reviewEntry, createInvitation, changeInvitation, updateProfile, reviewProfile, deleteProfile, getHistory } from './lib/supabase'
+  reviewEntry, createInvitation, changeInvitation, updateProfile, reviewProfile, deleteProfile, deleteEntry, getHistory } from './lib/supabase'
 import { demoApi, demoNotice, demoProfiles, demoRole, setDemoRole } from './lib/demo'
 import { formatDate, formatDateTime, formatMinutes, localToday, monthName, overtimeMinutes, validOvertime } from './lib/time'
 import { makeReport } from './lib/report'
@@ -16,7 +16,7 @@ import './style.css'
 const demo = new URLSearchParams(window.location.search).has('demo')
 const blank: DataSet = { profiles: [], entries: [], invitations: [] }
 const api = demo ? demoApi : { loadData, submitEntry, reviseEntry, reviewEntry,
-  createInvitation, changeInvitation, updateProfile, reviewProfile, deleteProfile, getHistory }
+  createInvitation, changeInvitation, updateProfile, reviewProfile, deleteProfile, deleteEntry, getHistory }
 type Page = 'overview' | 'entries' | 'team' | 'reports'
 const roleName: Record<Role, string> = { admin: 'Administrador', supervisor: 'Gestor', maintainer: 'Manutentor' }
 const statusName: Record<Status, string> = { pending: 'Pendente', approved: 'Aprovada', rejected: 'Devolvida' }
@@ -259,7 +259,10 @@ function Workspace({ profile, onProfile, onExit }: { profile: Profile; onProfile
       </div>
     </main>
     {showForm && <EntryForm entry={editing} busy={busy} onClose={() => setShowForm(false)} onSave={async input => { const ok = await run(() => editing ? api.reviseEntry(editing.id, input) : api.submitEntry(input), editing ? 'Lançamento corrigido e reenviado.' : 'Hora extra enviada para aprovação.'); if (ok) { setShowForm(false); setEditing(null) } }}/>} 
-    {selected && <EntryDetail entry={data.entries.find(e => e.id === selected.id) ?? selected} names={names} manager={manager} canApprove={canApprove} busy={busy} onClose={() => setSelected(null)} onCorrect={() => { setEditing(selected); setSelected(null); setShowForm(true) }} onReview={async (decision, reason) => { const ok = await run(() => api.reviewEntry(selected.id, decision, reason), decision === 'approved' ? 'Hora extra aprovada.' : 'Lançamento devolvido ao manutentor.'); if (ok) setSelected(null) }}/>} 
+    {selected && <EntryDetail canDelete={profile.role === 'admin' && profile.active} onDelete={async () => {
+      if (!window.confirm(`Excluir definitivamente o lançamento de ${names.get(selected.worker_id) ?? 'Manutentor'} em ${formatDate(selected.work_date)}, das ${selected.point_exit.slice(0,5)} às ${selected.final_exit.slice(0,5)} (${formatMinutes(selected.minutes)})? O lançamento e seu histórico serão apagados, e as horas sairão dos totais e dos próximos relatórios. A conta será mantida. Esta ação não pode ser desfeita.`)) return
+      if (await run(() => api.deleteEntry(selected.id), 'Lançamento excluído. Totais atualizados.')) setSelected(null)
+    }} entry={data.entries.find(e => e.id === selected.id) ?? selected} names={names} manager={manager} canApprove={canApprove} busy={busy} onClose={() => setSelected(null)} onCorrect={() => { setEditing(selected); setSelected(null); setShowForm(true) }} onReview={async (decision, reason) => { const ok = await run(() => api.reviewEntry(selected.id, decision, reason), decision === 'approved' ? 'Hora extra aprovada.' : 'Lançamento devolvido ao manutentor.'); if (ok) setSelected(null) }}/>} 
   </div>
 }
 
@@ -335,7 +338,7 @@ function EntryForm({ entry, busy, onClose, onSave }: { entry: Entry | null; busy
     </div><div className="modal-footer"><button type="button" className="button ghost" onClick={onClose}>Cancelar</button><button disabled={busy || !valid} className="button primary" type="submit">{busy ? 'Enviando…' : entry ? 'Reenviar para análise' : 'Enviar para aprovação'} <ArrowRight size={17}/></button></div></form></div></div>
 }
 
-function EntryDetail({ entry, names, manager, canApprove, busy, onClose, onCorrect, onReview }: { entry: Entry; names: Map<string,string>; manager: boolean; canApprove: boolean; busy: boolean; onClose: () => void; onCorrect: () => void; onReview: (d: 'approved'|'rejected', reason?: string) => Promise<void> }) {
+function EntryDetail({ entry, names, manager, canApprove, canDelete, onDelete, busy, onClose, onCorrect, onReview }: { canDelete: boolean; onDelete: () => Promise<void>; entry: Entry; names: Map<string,string>; manager: boolean; canApprove: boolean; busy: boolean; onClose: () => void; onCorrect: () => void; onReview: (d: 'approved'|'rejected', reason?: string) => Promise<void> }) {
   const [reason, setReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
   const [history, setHistory] = useState<Event[]>([])
@@ -346,7 +349,7 @@ function EntryDetail({ entry, names, manager, canApprove, busy, onClose, onCorre
     {entry.reviewed_at && <p className="review-stamp">{entry.status === 'approved' ? 'Aprovado' : 'Devolvido'} por {names.get(entry.reviewed_by ?? '') ?? 'Gestor'} em {formatDateTime(entry.reviewed_at)}</p>}
     {canApprove && entry.status === 'pending' && rejecting && <label className="full-label">Por que está devolvendo? <span>*</span><textarea autoFocus required maxLength={1000} rows={3} placeholder="Explique o que precisa ser corrigido" value={reason} onChange={e => setReason(e.target.value)}/></label>}
     <div className="history"><strong>Histórico</strong>{history.map(h => <div className="history-row" key={h.id}><span className="history-dot"/><div><b>{actionName[h.action]}</b><small>{formatDateTime(h.created_at)}{h.actor_id ? ` · ${names.get(h.actor_id) ?? 'Equipe'}` : ''}</small></div></div>)}</div>
-  </div><div className="modal-footer">{!manager && entry.status === 'rejected' && <button className="button secondary" onClick={onCorrect}>Corrigir e reenviar</button>}{canApprove && entry.status === 'pending' && (rejecting ? <><button className="button ghost" onClick={() => setRejecting(false)}>Cancelar</button><button className="button danger" disabled={busy || !reason.trim()} onClick={() => void onReview('rejected', reason)}>Confirmar devolução</button></> : <><button className="button ghost" onClick={() => setRejecting(true)}>Devolver</button><button className="button primary" disabled={busy} onClick={() => void onReview('approved')}>Aprovar horas <Check size={17}/></button></>)}{(!canApprove || entry.status !== 'pending') && <button className="button ghost" onClick={onClose}>Fechar</button>}</div></div></div>
+  </div><div className="modal-footer">{canDelete && <button className="button danger" disabled={busy} onClick={() => void onDelete()}>Excluir lançamento</button>}{!manager && entry.status === 'rejected' && <button className="button secondary" onClick={onCorrect}>Corrigir e reenviar</button>}{canApprove && entry.status === 'pending' && (rejecting ? <><button className="button ghost" onClick={() => setRejecting(false)}>Cancelar</button><button className="button danger" disabled={busy || !reason.trim()} onClick={() => void onReview('rejected', reason)}>Confirmar devolução</button></> : <><button className="button ghost" onClick={() => setRejecting(true)}>Devolver</button><button className="button primary" disabled={busy} onClick={() => void onReview('approved')}>Aprovar horas <Check size={17}/></button></>)}{(!canApprove || entry.status !== 'pending') && <button className="button ghost" onClick={onClose}>Fechar</button>}</div></div></div>
 }
 
 function Team({ profile, data, busy, run }: { profile: Profile; data: DataSet; busy: boolean; run: (action: () => Promise<void>, success: string) => Promise<boolean | undefined> }) {
