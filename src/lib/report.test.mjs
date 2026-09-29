@@ -24,3 +24,25 @@ test('planilha inclui somente aprovados e soma minutos', async () => {
   assert.match(xml, /Cadastro/)
   assert.match(xml, /MAYCON/)
 })
+
+test('todas as abas respeitam a sequência SpreadsheetML e escapam textos', async () => {
+  const { blob } = makeReport([{ ...base, status: 'approved', note: 'Teste & revisão <ok>' }], [profile], '2026-09')
+  const bytes = Buffer.from(await blob.arrayBuffer())
+  const sheets = []
+  let offset = 0
+  while (bytes.readUInt32LE(offset) === 0x04034b50) {
+    const size = bytes.readUInt32LE(offset + 18)
+    const nameLength = bytes.readUInt16LE(offset + 26)
+    const extraLength = bytes.readUInt16LE(offset + 28)
+    const name = bytes.subarray(offset + 30, offset + 30 + nameLength).toString()
+    const start = offset + 30 + nameLength + extraLength
+    if (name.startsWith('xl/worksheets/')) sheets.push(bytes.subarray(start, start + size).toString())
+    offset = start + size
+  }
+  assert.equal(sheets.length, 3)
+  for (const sheet of sheets) {
+    assert.ok(sheet.indexOf('</sheetData>') < sheet.indexOf('<autoFilter '))
+    assert.ok(sheet.indexOf('<autoFilter ') < sheet.indexOf('<mergeCells '))
+  }
+  assert.match(sheets[0], /Teste &amp; revisão &lt;ok&gt;/)
+})

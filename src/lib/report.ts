@@ -33,7 +33,8 @@ function sheetXml(rows: Cell[][], styles: Array<Array<number | undefined>>, opti
     ? `<sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="${options.freezeRows}" topLeftCell="A${options.freezeRows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
     : '<sheetViews><sheetView showGridLines="0" workbookViewId="0"/></sheetViews>'
   const filter = options.autoFilter ? `<autoFilter ref="${options.autoFilter}"/>` : ''
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze}<sheetFormatPr defaultRowHeight="18"/><cols>${options.cols}</cols><sheetData>${rowXml}</sheetData>${merges}${filter}</worksheet>`
+  // SpreadsheetML requires autoFilter before mergeCells (CT_Worksheet sequence).
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze}<sheetFormatPr defaultRowHeight="18"/><cols>${options.cols}</cols><sheetData>${rowXml}</sheetData>${filter}${merges}</worksheet>`
 }
 
 function emptyGrid(rows: number, cols: number) {
