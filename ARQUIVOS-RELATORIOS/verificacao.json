@@ -1,0 +1,9 @@
+{
+  "version": "relatorios-individuais-2026-10-06",
+  "files": {
+    "src/main.tsx": "9338b1877325d4731b6e89adfecfb66010d5eaee40db993505c7e6afbdc4c3be",
+    "src/style.css": "e1e8f49a1c5e397f701723965b6ebbc67e7e65f71406f89ed412d6da6c8b6844",
+    "src/lib/report.ts": "58bb14956cecd188f826db791197800b3235bce9ae2307859ac80c39bc48facf",
+    "src/lib/report.test.mjs": "de30c614fb72921247a1f3a18aa455fc6fc76236b0f085701ec8acfeb2ffc3ad"
+  }
+}

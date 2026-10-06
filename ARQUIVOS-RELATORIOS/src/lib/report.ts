@@ -1,4 +1,4 @@
-import { formatDate, formatMinutes, monthName, overtimeStart } from './time.ts'
+import { formatDate, formatMinutes, monthName } from './time.ts'
 import type { Entry, Profile } from './types.ts'
 
 type Cell = string | number | null
@@ -57,7 +57,7 @@ export function selectReport(entries: Entry[], profiles: Profile[], period: stri
   const selectedWorkers = workerId ? workers.filter(p => p.id === workerId) : workers
   const selectedIds = new Set(selectedWorkers.map(p => p.id))
   const approved = entries.filter(e => e.status === 'approved' && e.work_date.startsWith(`${period}-`) && selectedIds.has(e.worker_id))
-    .sort((a, b) => a.work_date.localeCompare(b.work_date) || overtimeStart(a).localeCompare(overtimeStart(b)) || a.worker_id.localeCompare(b.worker_id))
+    .sort((a, b) => a.work_date.localeCompare(b.work_date) || a.point_exit.localeCompare(b.point_exit) || a.worker_id.localeCompare(b.worker_id))
   return { workers, selectedWorkers, approved }
 }
 
@@ -79,7 +79,7 @@ function buildPersonSheet(person: Profile, own: Entry[], period: string) {
   const bodyCount = Math.max(17, own.length); const totalRow = 8 + bodyCount; const { values, styles } = emptyGrid(totalRow, 6)
   values[3][1] = 'CONTROLE DE HORAS EXTRAS'; values[4][1] = `Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0, 4)}. Preenchimento gerado após aprovação.`; values[5][1] = person.full_name.toUpperCase(); values[6][1] = 'DATA'; values[6][2] = 'ENTRADA'; values[6][3] = 'SAÍDA'
   setRowStyle(styles, 3, 1, 1, 6); setRowStyle(styles, 4, 2, 1, 6); setRowStyle(styles, 5, 8, 1, 6); setRowStyle(styles, 6, 3, 1, 4)
-  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), overtimeStart(e), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, null, null]; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4 }
+  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), e.point_exit.slice(0, 5), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, null, null]; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4 }
   values[totalRow - 1][1] = 'TOTAL'; values[totalRow - 1][3] = formatMinutes(own.reduce((sum, e) => sum + e.minutes, 0)); setRowStyle(styles, totalRow - 1, 7, 1, 4)
   return sheetXml(values, styles, { cols: '<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="6" width="22"/>', merges: ['B4:F4', 'B5:F5', 'B6:F6'], autoFilter: `B7:D${totalRow - 1}` })
 }

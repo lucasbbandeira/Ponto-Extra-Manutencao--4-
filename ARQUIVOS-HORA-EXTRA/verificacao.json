@@ -1,0 +1,39 @@
+{
+  "version": "inicio-extra-2026-10-06",
+  "files": {
+    "src/main.tsx": "e4ecfaf25364b2c29ba77faab70ab5f35e2e2b1dd5a192be6ed7d02c12be0393",
+    "src/style.css": "fa7b8408dd2f3c2644ff5f84d282947db3bf6adbabf13f5b0ac0b34dbe7e2f9d",
+    "src/lib/types.ts": "49690ce57d5f8b0a395ba483d091a7b523e40d25dcdb3efee8ccf6007d62ceab",
+    "src/lib/time.ts": "acd687b1b53af0fa7004940dc8b9115a5fe941e8f6330376583d784b8e2e43ad",
+    "src/lib/supabase.ts": "cba4b43c5ffcdb0223ef4132467d62c9bccd511eb1da5fd5d23fa258ca82b137",
+    "src/lib/demo.ts": "bb391ff05487b3f279acfafb7e2b9e4f5608e2ba3771118581d0f7fa903213e7",
+    "src/lib/report.ts": "415c2999e6d830ebd26250873f5a4ad335c71d43b05780f1082b1d97304b563e",
+    "src/lib/time.test.mjs": "54646c869b5a5a82abbd13c14b7119c20aa8aa08463bcecfbb128037a6f823eb",
+    "src/lib/report.test.mjs": "5bcbee381f6d1f1abe6d73016e5121f927017de3237df58e763fba73e71918da",
+    "supabase/migrations/20261006034144_overtime_start_required_fields.sql": "95ed0b31611322abb8236352d3bd18805122867cb1a228ecf3eb3bc0f207c734"
+  },
+  "updated": {
+    "src/main.tsx": "e4ecfaf25364b2c29ba77faab70ab5f35e2e2b1dd5a192be6ed7d02c12be0393",
+    "src/style.css": "fa7b8408dd2f3c2644ff5f84d282947db3bf6adbabf13f5b0ac0b34dbe7e2f9d",
+    "src/lib/types.ts": "49690ce57d5f8b0a395ba483d091a7b523e40d25dcdb3efee8ccf6007d62ceab",
+    "src/lib/time.ts": "acd687b1b53af0fa7004940dc8b9115a5fe941e8f6330376583d784b8e2e43ad",
+    "src/lib/supabase.ts": "cba4b43c5ffcdb0223ef4132467d62c9bccd511eb1da5fd5d23fa258ca82b137",
+    "src/lib/demo.ts": "bb391ff05487b3f279acfafb7e2b9e4f5608e2ba3771118581d0f7fa903213e7",
+    "src/lib/report.ts": "415c2999e6d830ebd26250873f5a4ad335c71d43b05780f1082b1d97304b563e",
+    "src/lib/time.test.mjs": "54646c869b5a5a82abbd13c14b7119c20aa8aa08463bcecfbb128037a6f823eb",
+    "src/lib/report.test.mjs": "5bcbee381f6d1f1abe6d73016e5121f927017de3237df58e763fba73e71918da",
+    "supabase/migrations/20261006034144_overtime_start_required_fields.sql": "95ed0b31611322abb8236352d3bd18805122867cb1a228ecf3eb3bc0f207c734"
+  },
+  "baseline": {
+    "src/main.tsx": "9338b1877325d4731b6e89adfecfb66010d5eaee40db993505c7e6afbdc4c3be",
+    "src/style.css": "e1e8f49a1c5e397f701723965b6ebbc67e7e65f71406f89ed412d6da6c8b6844",
+    "src/lib/types.ts": "d44cf6f23e19f731aaa087491a6ad6b25084c68ebeb6511a0cf2a631bdca6a63",
+    "src/lib/time.ts": "01ddf055f6d90ad85220d4946db16710bc9f01b5fe5f82038428880062a04ae5",
+    "src/lib/supabase.ts": "da742886494e1a1bedc32e96ad5964a323d9b5aacddaa217a64d4dab6de4c196",
+    "src/lib/demo.ts": "ba4e74a71ef4ba94e6e4937c5b07c4852c315647f32b90d82f285d5ab5d90209",
+    "src/lib/report.ts": "58bb14956cecd188f826db791197800b3235bce9ae2307859ac80c39bc48facf",
+    "src/lib/time.test.mjs": "3262366b887b151f54b5160b9b3d3bd0779c481d4a9841fbfcebeb11d1c5b6e9",
+    "src/lib/report.test.mjs": "de30c614fb72921247a1f3a18aa455fc6fc76236b0f085701ec8acfeb2ffc3ad",
+    "supabase/migrations/20261006034144_overtime_start_required_fields.sql": null
+  }
+}

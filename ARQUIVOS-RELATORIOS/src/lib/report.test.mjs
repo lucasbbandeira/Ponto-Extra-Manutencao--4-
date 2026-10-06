@@ -121,15 +121,3 @@ test('abas respeitam a sequência SpreadsheetML e textos não viram fórmulas', 
   assert.equal(cell(sheet, 'B6'), '=MAYCON &amp; &lt;EQUIPE&gt;')
   assert.doesNotMatch(sheet, /<f[ >]|\u0000/)
 })
-
-test('relatório usa o início da extra e mantém a batida do ponto dos registros antigos', async () => {
-  const recent = { ...base, work_date: '2026-09-30', overtime_start: '18:00:00', final_exit: '20:30:00', minutes: 150 }
-  const original = JSON.stringify([base, recent])
-  const files = await unzip(makeReport([base, recent], [profile], '2026-09', '1').blob)
-  const [sheet] = worksheets(files)
-  assert.equal(cell(sheet, 'C8'), '17:00', 'registro antigo mantém o horário original')
-  assert.equal(cell(sheet, 'C9'), '18:00', 'registro novo usa início explícito')
-  assert.equal(cell(sheet, 'D9'), '20:30')
-  assert.equal(cell(sheet, 'D25'), '5h00')
-  assert.equal(JSON.stringify([base, recent]), original)
-})
