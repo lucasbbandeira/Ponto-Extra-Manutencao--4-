@@ -155,4 +155,4 @@ supabase/
 
 ## Autor
 
-Projeto desenvolvido por **Lucas Bandeira** para organizar o controle de horas extras da equipe de manutenção.
+Projeto desenvolvido por **Lucas Bandeira** para organizar o controle de horas extras da equipe de manutenção na empresa Madalosso.
