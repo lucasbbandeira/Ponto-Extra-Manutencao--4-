@@ -31,7 +31,8 @@ export interface Entry {
   worker_id: string
   work_date: string
   normal_entry: string | null
-  point_exit: string
+  point_exit: string | null
+  is_holiday?: boolean
   overtime_start?: string | null
   final_exit: string
   final_exit_next_day: boolean
@@ -46,6 +47,7 @@ export interface Entry {
 }
 
 export interface EntryInput {
+  is_holiday: boolean
   work_date: string
   normal_entry: string
   point_exit: string

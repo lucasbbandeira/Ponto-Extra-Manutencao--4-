@@ -102,7 +102,7 @@ test('planilha preserva virada do dia, ordem dos horários e totais acima de 24 
   assert.equal(cell(sheet, 'B32'), '29/09/2026')
   assert.equal(cell(sheet, 'D32'), '01:00 (+1 dia)')
   assert.equal(cell(sheet, 'D33'), '62h00')
-  assert.match(sheet, /<autoFilter ref="B7:D32"/)
+  assert.match(sheet, /<autoFilter ref="B7:E32"/)
 })
 
 test('não produz arquivo inválido quando não há aprovação, pessoa ou mês válido', () => {
@@ -132,4 +132,23 @@ test('relatório usa o início da extra e mantém a batida do ponto dos registro
   assert.equal(cell(sheet, 'D9'), '20:30')
   assert.equal(cell(sheet, 'D25'), '5h00')
   assert.equal(JSON.stringify([base, recent]), original)
+})
+
+
+test('feriado aprovado aparece na aba individual com horários extras e identificação, sem horários fictícios', async () => {
+  const holiday = Object.freeze({ ...base, id: 'holiday', work_date: '2026-09-07', is_holiday: true, normal_entry: null, point_exit: null,
+    overtime_start: '23:30:00', final_exit: '01:15:00', final_exit_next_day: true, minutes: 105 })
+  const pending = { ...holiday, id: 'pending-holiday', status: 'pending', minutes: 999 }
+  const files = await unzip(makeReport([base, holiday, pending], [profile, paulo], '2026-09', '1').blob)
+  assert.deepEqual(sheetNames(files), ['MAYCON'])
+  const [sheet] = worksheets(files)
+  assert.equal(cell(sheet, 'B8'), '07/09/2026')
+  assert.equal(cell(sheet, 'C8'), '23:30')
+  assert.equal(cell(sheet, 'D8'), '01:15 (+1 dia)')
+  assert.equal(cell(sheet, 'E7'), 'TIPO')
+  assert.equal(cell(sheet, 'E8'), 'Feriado')
+  assert.equal(cell(sheet, 'E9'), 'Dia normal')
+  assert.equal(cell(sheet, 'D25'), '4h15')
+  assert.doesNotMatch(sheet, /null|undefined/)
+  assert.equal(holiday.point_exit, null)
 })

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { overtimeMinutes, validOvertime, formatMinutes, overtimeStart, entryValidationError } from './time.ts'
+import { overtimeMinutes, validOvertime, formatMinutes, overtimeStart, entryValidationError, entryValues } from './time.ts'
 
 test('conta somente do início informado até o término da hora extra', () => {
   const entry = { normal_entry: '08:00', point_exit: '17:00', overtime_start: '18:00', final_exit: '20:30' }
@@ -8,7 +8,7 @@ test('conta somente do início informado até o término da hora extra', () => {
   assert.equal(formatMinutes(150), '2h30')
 })
 
-const input = { work_date: '2026-10-06', normal_entry: '08:00', point_exit: '17:00', overtime_start: '18:00', final_exit: '20:30', final_exit_next_day: false, note: 'Manutenção da câmara fria' }
+const input = { is_holiday: false, work_date: '2026-10-06', normal_entry: '08:00', point_exit: '17:00', overtime_start: '18:00', final_exit: '20:30', final_exit_next_day: false, note: 'Manutenção da câmara fria' }
 
 test('todos os campos são obrigatórios, incluindo descrição sem espaços vazios', () => {
   assert.equal(entryValidationError(input), null)
@@ -49,4 +49,35 @@ test('travessia da meia-noite exige a marcacao do dia seguinte', () => {
   assert.equal(validOvertime('23:40', '01:15', false), false)
   assert.equal(validOvertime('18:00', '18:00', false), false)
   assert.equal(validOvertime('08:00', '20:00', true), false)
+})
+
+
+test('feriado dispensa somente os horários normais e mantém os demais obrigatórios', () => {
+  const holiday = { ...input, is_holiday: true, normal_entry: '', point_exit: '', overtime_start: '08:00', final_exit: '12:30' }
+  assert.equal(entryValidationError(holiday), null)
+  assert.equal(overtimeMinutes(holiday.overtime_start, holiday.final_exit, false), 270)
+  for (const field of ['work_date', 'overtime_start', 'final_exit', 'note']) {
+    assert.ok(entryValidationError({ ...holiday, [field]: '' }), field)
+  }
+  assert.ok(entryValidationError({ ...holiday, is_holiday: false }))
+  assert.ok(entryValidationError({ ...holiday, note: '   ' }))
+  assert.ok(entryValidationError({ ...holiday, is_holiday: 'true' }))
+})
+
+test('feriado não envia horários normais guardados ao alternar a opção', () => {
+  const holiday = { ...input, is_holiday: true, overtime_start: '08:00', final_exit: '12:30' }
+  assert.equal(entryValidationError(holiday), null)
+  assert.deepEqual(entryValues(holiday), { ...holiday, normal_entry: null, point_exit: null })
+  assert.equal(entryValues(input).point_exit, '17:00')
+  assert.equal(entryValues(input).normal_entry, '08:00')
+  assert.equal(input.point_exit, '17:00')
+  assert.equal(overtimeStart({ point_exit: null, overtime_start: '08:00:00' }), '08:00')
+})
+
+test('feriado calcula virada de dia e continua respeitando o limite de duração', () => {
+  const holiday = { ...input, is_holiday: true, normal_entry: '', point_exit: '', overtime_start: '23:30', final_exit: '01:15', final_exit_next_day: true }
+  assert.equal(entryValidationError(holiday), null)
+  assert.equal(overtimeMinutes(holiday.overtime_start, holiday.final_exit, true), 105)
+  assert.ok(entryValidationError({ ...holiday, final_exit_next_day: false }))
+  assert.ok(entryValidationError({ ...holiday, overtime_start: '08:00', final_exit: '00:01' }))
 })

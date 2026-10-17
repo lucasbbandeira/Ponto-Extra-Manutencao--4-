@@ -77,11 +77,11 @@ function safeSheetName(name: string, used: Set<string>) {
 
 function buildPersonSheet(person: Profile, own: Entry[], period: string) {
   const bodyCount = Math.max(17, own.length); const totalRow = 8 + bodyCount; const { values, styles } = emptyGrid(totalRow, 6)
-  values[3][1] = 'CONTROLE DE HORAS EXTRAS'; values[4][1] = `Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0, 4)}. Preenchimento gerado após aprovação.`; values[5][1] = person.full_name.toUpperCase(); values[6][1] = 'DATA'; values[6][2] = 'ENTRADA'; values[6][3] = 'SAÍDA'
-  setRowStyle(styles, 3, 1, 1, 6); setRowStyle(styles, 4, 2, 1, 6); setRowStyle(styles, 5, 8, 1, 6); setRowStyle(styles, 6, 3, 1, 4)
-  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), overtimeStart(e), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, null, null]; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4 }
+  values[3][1] = 'CONTROLE DE HORAS EXTRAS'; values[4][1] = `Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0, 4)}. Preenchimento gerado após aprovação.`; values[5][1] = person.full_name.toUpperCase(); values[6][1] = 'DATA'; values[6][2] = 'ENTRADA'; values[6][3] = 'SAÍDA'; values[6][4] = 'TIPO'
+  setRowStyle(styles, 3, 1, 1, 6); setRowStyle(styles, 4, 2, 1, 6); setRowStyle(styles, 5, 8, 1, 6); setRowStyle(styles, 6, 3, 1, 5)
+  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), overtimeStart(e), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, e.is_holiday ? 'Feriado' : 'Dia normal', null]; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4; styles[7 + i][4] = 5 }
   values[totalRow - 1][1] = 'TOTAL'; values[totalRow - 1][3] = formatMinutes(own.reduce((sum, e) => sum + e.minutes, 0)); setRowStyle(styles, totalRow - 1, 7, 1, 4)
-  return sheetXml(values, styles, { cols: '<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="6" width="22"/>', merges: ['B4:F4', 'B5:F5', 'B6:F6'], autoFilter: `B7:D${totalRow - 1}` })
+  return sheetXml(values, styles, { cols: '<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="6" width="22"/>', merges: ['B4:F4', 'B5:F5', 'B6:F6'], autoFilter: `B7:E${totalRow - 1}` })
 }
 
 // ZIP sem compressão: o arquivo é pequeno e não depende de bibliotecas externas no navegador.

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { EntryInput, Profile, DataSet, Invitation, Event, Role } from './types'
-import { entryValidationError } from './time'
+import { entryValidationError, entryValues } from './time'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
@@ -15,8 +15,12 @@ function client() {
   return supabase
 }
 
-function check(error: { message: string } | null) {
-  if (error) throw new Error(error.message)
+function check(error: { message: string; code?: string } | null) {
+  if (!error) return
+  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v3/.test(error.message)) {
+    throw new Error('Falta aplicar a atualização de feriados no Supabase. Peça ao administrador para executar o arquivo ATUALIZAR-FERIADOS.sql.')
+  }
+  throw new Error(error.message)
 }
 
 // Supabase limita respostas a 1.000 linhas por padrão. Paginar preserva relatórios mensais completos.
@@ -47,9 +51,11 @@ export async function loadData(role: Role): Promise<DataSet> {
 export async function submitEntry(input: EntryInput) {
   const invalid = entryValidationError(input)
   if (invalid) throw new Error(invalid)
-  const { error } = await client().rpc('submit_entry_v2', {
-    p_work_date: input.work_date, p_normal_entry: input.normal_entry,
-    p_point_exit: input.point_exit, p_final_exit: input.final_exit,
+  const values = entryValues(input)
+  const { error } = await client().rpc('submit_entry_v3', {
+    p_work_date: input.work_date, p_normal_entry: values.normal_entry,
+    p_point_exit: values.point_exit, p_final_exit: input.final_exit,
+    p_is_holiday: values.is_holiday,
     p_overtime_start: input.overtime_start,
     p_final_exit_next_day: input.final_exit_next_day, p_note: input.note.trim(),
   })
@@ -59,9 +65,11 @@ export async function submitEntry(input: EntryInput) {
 export async function reviseEntry(id: string, input: EntryInput) {
   const invalid = entryValidationError(input)
   if (invalid) throw new Error(invalid)
-  const { error } = await client().rpc('revise_entry_v2', {
-    p_entry_id: id, p_work_date: input.work_date, p_normal_entry: input.normal_entry,
-    p_point_exit: input.point_exit, p_final_exit: input.final_exit,
+  const values = entryValues(input)
+  const { error } = await client().rpc('revise_entry_v3', {
+    p_entry_id: id, p_work_date: input.work_date, p_normal_entry: values.normal_entry,
+    p_point_exit: values.point_exit, p_final_exit: input.final_exit,
+    p_is_holiday: values.is_holiday,
     p_overtime_start: input.overtime_start,
     p_final_exit_next_day: input.final_exit_next_day, p_note: input.note.trim(),
   })

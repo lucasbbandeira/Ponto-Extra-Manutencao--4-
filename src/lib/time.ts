@@ -8,7 +8,7 @@ export function timeMinutes(value: string): number {
 
 // Os lançamentos anteriores não tinham início separado: preservar a referência original.
 export function overtimeStart(entry: Pick<Entry, 'point_exit' | 'overtime_start'>): string {
-  return (entry.overtime_start || entry.point_exit).slice(0, 5)
+  return (entry.overtime_start || entry.point_exit || '').slice(0, 5)
 }
 
 export function overtimeMinutes(overtimeStart: string, finalExit: string, nextDay: boolean): number {
@@ -27,13 +27,29 @@ export function validOvertime(overtimeStart: string, finalExit: string, nextDay:
 export function entryValidationError(input: EntryInput): string | null {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(input.work_date) ? new Date(`${input.work_date}T12:00:00Z`) : null
   if (!date || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== input.work_date) return 'Informe uma data de trabalho válida.'
-  if (![input.normal_entry, input.point_exit, input.overtime_start, input.final_exit].every(t => Number.isFinite(timeMinutes(t)))) return 'Preencha todos os horários: entrada normal, saída normal, início e término da hora extra.'
+  if (typeof input.is_holiday !== 'boolean') return 'Confira a opção de trabalho em feriado.'
+  const requiredTimes = input.is_holiday
+    ? [input.overtime_start, input.final_exit]
+    : [input.normal_entry, input.point_exit, input.overtime_start, input.final_exit]
+  if (!requiredTimes.every(t => Number.isFinite(timeMinutes(t)))) return input.is_holiday
+    ? 'Preencha o início e o término da hora extra.'
+    : 'Preencha todos os horários: entrada normal, saída normal, início e término da hora extra.'
   if (!input.note.trim()) return 'Preencha a descrição do serviço realizado.'
   if (input.note.trim().length > 1000) return 'A descrição pode ter até 1.000 caracteres.'
   if (typeof input.final_exit_next_day !== 'boolean') return 'Confira se o término ocorreu no dia seguinte.'
-  if (timeMinutes(input.overtime_start) < timeMinutes(input.point_exit)) return 'O início da hora extra deve ser igual ou posterior à saída normal.'
+  if (!input.is_holiday && timeMinutes(input.overtime_start) < timeMinutes(input.point_exit)) return 'O início da hora extra deve ser igual ou posterior à saída normal.'
   if (!validOvertime(input.overtime_start, input.final_exit, input.final_exit_next_day)) return 'Confira os horários. A extra precisa ser maior que zero e não pode exceder 16 horas. Se o término foi no dia seguinte, marque essa opção.'
   return null
+}
+
+// Uma opção desativada no formulário nunca deve virar um horário fictício no banco.
+export function entryValues(input: EntryInput) {
+  return {
+    ...input,
+    normal_entry: input.is_holiday ? null : input.normal_entry,
+    point_exit: input.is_holiday ? null : input.point_exit,
+    note: input.note.trim(),
+  }
 }
 
 export function localToday(): string {

@@ -12,3 +12,12 @@
 @media(max-width:480px){.pie-layout{gap:14px}.pie-chart{width:126px;height:126px}.pie-chart:after{inset:21px}.pie-chart strong{font-size:15px}.chart-legend{gap:9px}.legend-row{font-size:9px}}
 
 .form-validation{font-size:12px;line-height:1.6;color:var(--muted,#687b86);margin:14px 0 0}
+
+/* Cadastro de feriado: os horários normais ficam desativados e sem valor. */
+.holiday-option{display:flex;align-items:flex-start;gap:12px;padding:15px;border:1px solid #e7d2a7;border-radius:12px;background:#fff8eb;margin:0 0 20px;cursor:pointer}
+.holiday-option input{width:18px;height:18px;flex-shrink:0;margin:2px 0 0;accent-color:#be8532}
+.holiday-option strong{display:block;font-size:13px;color:#344f5e}
+.holiday-option small{display:block;font-size:12px;line-height:1.5;color:#6b7b85;margin-top:4px}
+.form-grid input:disabled{background:#eef1f3;color:#8a98a1;cursor:not-allowed;opacity:1}
+.form-grid .field-hint{display:block;color:#7b8992;font-size:11px;margin-top:5px;font-weight:400}
+.holiday-badge{display:table;width:fit-content;background:#fff1d7;color:#89581a;border-radius:5px;font-size:10px;font-weight:700;padding:3px 7px;margin-top:5px}

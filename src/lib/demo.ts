@@ -1,4 +1,4 @@
-import { entryValidationError, formatDate, localToday, overtimeMinutes } from './time'
+import { entryValidationError, entryValues, formatDate, localToday, overtimeMinutes } from './time'
 import type { DataSet, Entry, EntryInput, Event, Invitation, Profile, Role } from './types'
 
 const now = new Date().toISOString()
@@ -31,6 +31,8 @@ let entries: Entry[] = [
   record('06', 'paulo', 3, '18:00', '19:30', 'approved', 'Ajuste de equipamento'),
   record('07', 'elciney', 4, '17:00', '18:20', 'rejected', 'Chamado emergencial'),
   record('08', 'mathus', 5, '17:00', '20:15', 'approved', 'Fechamento de ordem de serviço'),
+  { ...record('09', 'maycon', 6, '08:00', '12:00', 'approved', 'Atendimento emergencial em feriado'),
+    is_holiday: true, normal_entry: null, point_exit: null, overtime_start: '08:00' },
 ]
 
 function record(id: string, worker_id: string, ago: number, point_exit: string,
@@ -68,12 +70,9 @@ export const demoApi = {
     if (demoRole().role !== 'maintainer') throw new Error('Use o acesso de manutentor para registrar horas.')
     const invalid = entryValidationError(input)
     if (invalid) throw new Error(invalid)
-    const e = record(crypto.randomUUID(), current, 0, input.point_exit, input.final_exit,
+    const e = record(crypto.randomUUID(), current, 0, input.overtime_start, input.final_exit,
       'pending', input.note, input.final_exit_next_day)
-    e.work_date = input.work_date
-    e.normal_entry = input.normal_entry
-    e.overtime_start = input.overtime_start
-    e.note = input.note.trim()
+    Object.assign(e, entryValues(input))
     e.minutes = overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day)
     entries = [e, ...entries]
     events = [{ id: Date.now(), entry_id: e.id, actor_id: current, action: 'submitted', snapshot: { ...e }, created_at: now }, ...events]
@@ -83,7 +82,7 @@ export const demoApi = {
     if (invalid) throw new Error(invalid)
     const e = entries.find(x => x.id === id)
     if (!e || e.worker_id !== current || e.status !== 'rejected') throw new Error('Lançamento indisponível para correção.')
-    Object.assign(e, input, { note: input.note.trim(), minutes: overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day),
+    Object.assign(e, entryValues(input), { minutes: overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day),
       status: 'pending', rejection_reason: null, reviewed_by: null, reviewed_at: null, submitted_at: now })
     events = [{ id: Date.now(), entry_id: id, actor_id: current, action: 'revised', snapshot: { ...e }, created_at: now }, ...events]
   },
