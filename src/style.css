@@ -21,3 +21,7 @@
 .form-grid input:disabled{background:#eef1f3;color:#8a98a1;cursor:not-allowed;opacity:1}
 .form-grid .field-hint{display:block;color:#7b8992;font-size:11px;margin-top:5px;font-weight:400}
 .holiday-badge{display:table;width:fit-content;background:#fff1d7;color:#89581a;border-radius:5px;font-size:10px;font-weight:700;padding:3px 7px;margin-top:5px}
+
+/* Consulta da administração: justificativa acessível também nos detalhes. */
+.entry-justification { min-width: 200px; max-width: 320px; white-space: normal; overflow-wrap: anywhere; }
+.role-badge.analyst { color: #425b83; background: #eaf0fb; }

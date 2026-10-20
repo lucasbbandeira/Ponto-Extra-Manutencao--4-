@@ -1,4 +1,4 @@
-import { entryValidationError, entryValues, formatDate, localToday, overtimeMinutes } from './time'
+import { entryValidationError, entryValues, formatDate, localToday, overtimeMinutes } from './time.ts'
 import type { DataSet, Entry, EntryInput, Event, Invitation, Profile, Role } from './types'
 
 const now = new Date().toISOString()
@@ -12,13 +12,13 @@ const daysAgo = (days: number) => {
 const people: [string, string, Role][] = [
   ['maycon', 'Maycon', 'maintainer'], ['paulo', 'Paulo', 'maintainer'],
   ['elciney', 'Elciney', 'maintainer'], ['mathus', 'Mathus', 'maintainer'],
-  ['marcelo', 'Marcelo Bogo', 'supervisor'], ['admin', 'Administrador', 'admin'],
+  ['analista', 'Analista da administração', 'analyst'], ['marcelo', 'Marcelo Bogo', 'supervisor'], ['admin', 'Administrador', 'admin'],
 ]
 
 export const demoProfiles: Profile[] = people.map(([id, name, role]) => ({
   id, full_name: name, email: `${id}@exemplo.com`, role, active: true,
   approval_status: 'approved',
-  can_approve: role !== 'maintainer', can_export: role !== 'maintainer',
+  can_approve: role === 'admin' || role === 'supervisor', can_export: role !== 'maintainer',
   created_at: now, updated_at: now,
 }))
 
@@ -62,7 +62,7 @@ export const demoApi = {
   async loadData(): Promise<DataSet> {
     return {
       profiles: demoProfiles.map(p => ({ ...p })),
-      entries: entries.filter(e => current === 'admin' || current === 'marcelo' || e.worker_id === current).map(e => ({ ...e })),
+      entries: entries.filter(e => demoRole().role !== 'maintainer' || e.worker_id === current).map(e => ({ ...e })),
       invitations: current === 'admin' ? invitations.map(i => ({ ...i })) : [],
     }
   },
@@ -78,6 +78,7 @@ export const demoApi = {
     events = [{ id: Date.now(), entry_id: e.id, actor_id: current, action: 'submitted', snapshot: { ...e }, created_at: now }, ...events]
   },
   async reviseEntry(id: string, input: EntryInput) {
+    if (demoRole().role !== 'maintainer' || !demoRole().active) throw new Error('Sem permissão para corrigir horas.')
     const invalid = entryValidationError(input)
     if (invalid) throw new Error(invalid)
     const e = entries.find(x => x.id === id)
@@ -87,6 +88,8 @@ export const demoApi = {
     events = [{ id: Date.now(), entry_id: id, actor_id: current, action: 'revised', snapshot: { ...e }, created_at: now }, ...events]
   },
   async reviewEntry(id: string, decision: 'approved' | 'rejected', reason?: string) {
+    const actor = demoRole()
+    if (!actor.active || !(actor.role === 'admin' || (actor.role === 'supervisor' && actor.can_approve))) throw new Error('Sem permissão para aprovar.')
     const e = entries.find(x => x.id === id)
     if (!e || e.status !== 'pending') throw new Error('Este lançamento já foi analisado.')
     e.status = decision
@@ -96,22 +99,26 @@ export const demoApi = {
     events = [{ id: Date.now(), entry_id: id, actor_id: current, action: decision, snapshot: { ...e }, created_at: now }, ...events]
   },
   async createInvitation(email: string, name: string, role: Role, adminId: string) {
+    if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     if (invitations.some(i => i.email === email)) throw new Error('Este e-mail já foi autorizado.')
     invitations = [{ id: crypto.randomUUID(), email, full_name: name, role, status: 'pending',
       invited_by: adminId, claimed_by: null, created_at: now, claimed_at: null }, ...invitations]
   },
   async changeInvitation(id: string, status: 'pending' | 'revoked') {
+    if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     invitations = invitations.map(i => i.id === id ? { ...i, status } : i)
   },
   async updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean) {
+    if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     const p = demoProfiles.find(x => x.id === profile.id)
     if (!p) throw new Error('Usuário não encontrado.')
     if (p.id === 'admin' && (!active || role !== 'admin')) throw new Error('O administrador principal deve permanecer ativo.')
     Object.assign(p, { full_name: name, role, active,
       can_approve: role === 'admin' || (role === 'supervisor' && approve),
-      can_export: role === 'admin' || (role === 'supervisor' && exportReport) })
+      can_export: role === 'admin' || role === 'analyst' || (role === 'supervisor' && exportReport) })
   },
   async reviewProfile(id: string, approve: boolean) {
+    if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     const p = demoProfiles.find(x => x.id === id)
     if (!p) throw new Error('Usuário não encontrado.')
     p.active = approve
@@ -125,6 +132,7 @@ export const demoApi = {
     events = events.filter(e => e.entry_id !== id)
   },
   async deleteProfile(id: string) {
+    if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     if (id === 'admin') throw new Error('O administrador principal não pode ser excluído.')
     if (entries.some(e => e.worker_id === id)) throw new Error('Este usuário possui lançamentos. Desative o acesso em vez de excluir o perfil.')
     const index = demoProfiles.findIndex(p => p.id === id)

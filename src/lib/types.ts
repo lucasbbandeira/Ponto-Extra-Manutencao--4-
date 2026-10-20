@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'supervisor' | 'maintainer'
+export type Role = 'admin' | 'supervisor' | 'maintainer' | 'analyst'
 export type Status = 'pending' | 'approved' | 'rejected'
 
 export interface Profile {
