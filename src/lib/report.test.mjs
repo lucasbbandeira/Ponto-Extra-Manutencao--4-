@@ -28,7 +28,7 @@ async function unzip(blob) {
 
 const sheetNames = files => [...files.get('xl/workbook.xml').matchAll(/<sheet name="([^"]+)"/g)].map(m => m[1])
 const worksheets = files => [...files].filter(([name]) => name.startsWith('xl/worksheets/')).map(([, value]) => value)
-const cell = (sheet, address) => sheet.match(new RegExp(`<c r="${address}"[^>]*>.*?<t>(.*?)</t>.*?</c>`))?.[1]
+const cell = (sheet, address) => sheet.match(new RegExp(`<c r="${address}"[^>]*>.*?<t(?: [^>]*)?>(.*?)</t>.*?</c>`, 's'))?.[1]
 
 test('exportação individual usa pessoa, mês e aprovação sem alterar os registros', async () => {
   const entries = Object.freeze([
@@ -102,7 +102,7 @@ test('planilha preserva virada do dia, ordem dos horários e totais acima de 24 
   assert.equal(cell(sheet, 'B32'), '29/09/2026')
   assert.equal(cell(sheet, 'D32'), '01:00 (+1 dia)')
   assert.equal(cell(sheet, 'D33'), '62h00')
-  assert.match(sheet, /<autoFilter ref="B7:E32"/)
+  assert.match(sheet, /<autoFilter ref="B7:F32"/)
 })
 
 test('não produz arquivo inválido quando não há aprovação, pessoa ou mês válido', () => {
@@ -151,4 +151,49 @@ test('feriado aprovado aparece na aba individual com horários extras e identifi
   assert.equal(cell(sheet, 'D25'), '4h15')
   assert.doesNotMatch(sheet, /null|undefined/)
   assert.equal(holiday.point_exit, null)
+})
+
+test('justificativa histórica completa é exportada ao lado da hora sem alterar o registro', async () => {
+  const note = '  Troca de resistência & inspeção <câmara fria>.\nConferência da instalação elétrica.  '
+  const record = Object.freeze({ ...base, note })
+  const sheet = worksheets(await unzip(makeReport([record], [profile], '2026-09', '1').blob))[0]
+  assert.equal(cell(sheet, 'F7'), 'JUSTIFICATIVA')
+  assert.equal(cell(sheet, 'F8'), note.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'))
+  assert.equal(record.note, note)
+  assert.match(sheet, /<autoFilter ref="B7:F24"/)
+})
+
+test('todas as abas têm justificativa do lançamento correto, sem misturar pessoas ou meses', async () => {
+  const entries = [
+    {...base, note:'Descrição Maycon antiga'},
+    {...base, worker_id:'2', note:'Descrição Paulo antiga'},
+    {...base, worker_id:'2', note:'NÃO EXPORTAR PENDENTE', status:'pending'},
+    {...base, note:'NÃO EXPORTAR OUTRO MÊS', work_date:'2026-10-01'},
+  ]
+  const files = await unzip(makeReport(entries, [profile,paulo], '2026-09').blob)
+  const [first,second] = worksheets(files)
+  assert.equal(cell(first,'F8'),'Descrição Maycon antiga')
+  assert.equal(cell(second,'F8'),'Descrição Paulo antiga')
+  assert.doesNotMatch(first,/Descrição Paulo|NÃO EXPORTAR/)
+  assert.doesNotMatch(second,/Descrição Maycon|NÃO EXPORTAR/)
+  assert.ok(worksheets(files).every(sheet=>cell(sheet,'F7')==='JUSTIFICATIVA'))
+})
+
+test('texto longo e quebras de linha são preservados como texto com espaço e altura', async () => {
+  const note='=Teste de segurança: '+('Manutenção elétrica, inspeção & troca de peças. '.repeat(21))
+  const files = await unzip(makeReport([{...base,note}], [profile], '2026-09', '1').blob)
+  const sheet = worksheets(files)[0]
+  assert.equal(cell(sheet,'F8'),note.replaceAll('&','&amp;'))
+  assert.match(sheet,/<c r="F8" s="11" t="inlineStr">/)
+  assert.match(sheet,/<row r="8" ht="[1-9][0-9]{2}(?:\.5)?" customHeight="1">/)
+  assert.match(files.get('xl/styles.xml'), /wrapText="1"/)
+  assert.doesNotMatch(sheet,/<f[ >]/)
+})
+
+test('registro antigo sem descrição não inventa justificativa e feriado também exporta a descrição', async () => {
+  const holiday={...base, work_date:'2026-09-07', is_holiday:true, note:'Atendimento de feriado', point_exit:null,overtime_start:'08:00',final_exit:'10:30'}
+  const files=await unzip(makeReport([{...base,note:''},holiday],[profile],'2026-09','1').blob)
+  const sheet=worksheets(files)[0]
+  assert.equal(cell(sheet,'F8'),'Atendimento de feriado')
+  assert.equal(cell(sheet,'F9'),'Não informada no registro original.')
 })
