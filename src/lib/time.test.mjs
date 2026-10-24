@@ -67,7 +67,7 @@ test('feriado dispensa somente os horários normais e mantém os demais obrigat�
 test('feriado não envia horários normais guardados ao alternar a opção', () => {
   const holiday = { ...input, is_holiday: true, overtime_start: '08:00', final_exit: '12:30' }
   assert.equal(entryValidationError(holiday), null)
-  assert.deepEqual(entryValues(holiday), { ...holiday, normal_entry: null, point_exit: null })
+  assert.deepEqual(entryValues(holiday), { ...holiday, normal_entry: null, point_exit: null, location: null, glpi: null })
   assert.equal(entryValues(input).point_exit, '17:00')
   assert.equal(entryValues(input).normal_entry, '08:00')
   assert.equal(input.point_exit, '17:00')
@@ -80,4 +80,14 @@ test('feriado calcula virada de dia e continua respeitando o limite de duração
   assert.equal(overtimeMinutes(holiday.overtime_start, holiday.final_exit, true), 105)
   assert.ok(entryValidationError({ ...holiday, final_exit_next_day: false }))
   assert.ok(entryValidationError({ ...holiday, overtime_start: '08:00', final_exit: '00:01' }))
+})
+
+test('localização e GLPI são os únicos novos campos opcionais e aceitam texto livre', () => {
+  assert.equal(entryValidationError({...input,location:'',glpi:''}),null)
+  const saved=entryValues({...input,location:'  Cozinha principal  ',glpi:'  #6438 / manutenção  '})
+  assert.equal(saved.location,'Cozinha principal');assert.equal(saved.glpi,'#6438 / manutenção')
+  assert.equal(entryValues(input).location,null);assert.equal(entryValues(input).glpi,null)
+  assert.match(entryValidationError({...input,location:'x'.repeat(201)}),/200/)
+  assert.match(entryValidationError({...input,glpi:'x'.repeat(101)}),/100/)
+  assert.notEqual(entryValidationError({...input,note:'',location:'Local',glpi:'123'}),null)
 })

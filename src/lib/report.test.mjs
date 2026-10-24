@@ -102,7 +102,7 @@ test('planilha preserva virada do dia, ordem dos horários e totais acima de 24 
   assert.equal(cell(sheet, 'B32'), '29/09/2026')
   assert.equal(cell(sheet, 'D32'), '01:00 (+1 dia)')
   assert.equal(cell(sheet, 'D33'), '62h00')
-  assert.match(sheet, /<autoFilter ref="B7:F32"/)
+  assert.match(sheet, /<autoFilter ref="B7:H32"/)
 })
 
 test('não produz arquivo inválido quando não há aprovação, pessoa ou mês válido', () => {
@@ -160,7 +160,7 @@ test('justificativa histórica completa é exportada ao lado da hora sem alterar
   assert.equal(cell(sheet, 'F7'), 'JUSTIFICATIVA')
   assert.equal(cell(sheet, 'F8'), note.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'))
   assert.equal(record.note, note)
-  assert.match(sheet, /<autoFilter ref="B7:F24"/)
+  assert.match(sheet, /<autoFilter ref="B7:H24"/)
 })
 
 test('todas as abas têm justificativa do lançamento correto, sem misturar pessoas ou meses', async () => {
@@ -196,4 +196,21 @@ test('registro antigo sem descrição não inventa justificativa e feriado tamb�
   const sheet=worksheets(files)[0]
   assert.equal(cell(sheet,'F8'),'Atendimento de feriado')
   assert.equal(cell(sheet,'F9'),'Não informada no registro original.')
+})
+
+test('Excel de cada pessoa inclui localização e GLPI sem misturar ou converter em fórmulas', async () => {
+  const one={...base,note:'Justificativa original',location:'Cozinha & <produção>',glpi:'=6438'}
+  const two={...base,worker_id:'2',location:'Câmara fria',glpi:'Chamado 99 / urgente'}
+  const files=await unzip(makeReport([one,two],[profile,paulo],'2026-09').blob)
+  const [first,second]=worksheets(files)
+  assert.equal(cell(first,'G7'),'LOCALIZAÇÃO');assert.equal(cell(first,'H7'),'GLPI')
+  assert.equal(cell(first,'G8'),'Cozinha &amp; &lt;produção&gt;');assert.equal(cell(first,'H8'),'=6438')
+  assert.equal(cell(second,'G8'),'Câmara fria');assert.equal(cell(second,'H8'),'Chamado 99 / urgente')
+  assert.equal(cell(first,'F8'),'Justificativa original');assert.equal(cell(first,'D25'),'2h30')
+  assert.doesNotMatch(first,/<f[ >]/)
+})
+test('registros antigos não precisam de localização/GLPI para gerar relatório', async () => {
+  const sheet=worksheets(await unzip(makeReport([base],[profile],'2026-09').blob))[0]
+  assert.equal(cell(sheet,'G8'),'Não informado');assert.equal(cell(sheet,'H8'),'Não informado')
+  assert.equal(cell(sheet,'D25'),'2h30')
 })

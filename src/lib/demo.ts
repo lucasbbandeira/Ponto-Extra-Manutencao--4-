@@ -32,7 +32,7 @@ let entries: Entry[] = [
   record('07', 'elciney', 4, '17:00', '18:20', 'rejected', 'Chamado emergencial'),
   record('08', 'mathus', 5, '17:00', '20:15', 'approved', 'Fechamento de ordem de serviço'),
   { ...record('09', 'maycon', 6, '08:00', '12:00', 'approved', 'Atendimento emergencial em feriado'),
-    is_holiday: true, normal_entry: null, point_exit: null, overtime_start: '08:00' },
+    location: 'Câmara fria', glpi: '6438', is_holiday: true, normal_entry: null, point_exit: null, overtime_start: '08:00' },
 ]
 
 function record(id: string, worker_id: string, ago: number, point_exit: string,
@@ -108,13 +108,14 @@ export const demoApi = {
     if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     invitations = invitations.map(i => i.id === id ? { ...i, status } : i)
   },
-  async updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean) {
+  async updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean, receiveReminders = false) {
     if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     const p = demoProfiles.find(x => x.id === profile.id)
     if (!p) throw new Error('Usuário não encontrado.')
     if (p.id === 'admin' && (!active || role !== 'admin')) throw new Error('O administrador principal deve permanecer ativo.')
     Object.assign(p, { full_name: name, role, active,
       can_approve: role === 'admin' || (role === 'supervisor' && approve),
+      receive_he_reminders: role === 'supervisor' && approve && receiveReminders,
       can_export: role === 'admin' || role === 'analyst' || (role === 'supervisor' && exportReport) })
   },
   async reviewProfile(id: string, approve: boolean) {

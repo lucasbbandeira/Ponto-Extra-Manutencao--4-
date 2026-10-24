@@ -1,0 +1,3 @@
+[functions.he-reminders]
+# A função verifica um segredo próprio em todas as chamadas; nunca é aberta sem autenticação.
+verify_jwt = false

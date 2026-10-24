@@ -17,8 +17,8 @@ function client() {
 
 function check(error: { message: string; code?: string } | null) {
   if (!error) return
-  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v3/.test(error.message)) {
-    throw new Error('Falta aplicar a atualização de feriados no Supabase. Peça ao administrador para executar o arquivo ATUALIZAR-FERIADOS.sql.')
+  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v4|admin_set_profile_v2/.test(error.message)) {
+    throw new Error('Falta aplicar a atualização no Supabase. Execute ATUALIZAR-LOCAL-GLPI-LEMBRETES.sql antes de usar os novos campos.')
   }
   throw new Error(error.message)
 }
@@ -52,10 +52,10 @@ export async function submitEntry(input: EntryInput) {
   const invalid = entryValidationError(input)
   if (invalid) throw new Error(invalid)
   const values = entryValues(input)
-  const { error } = await client().rpc('submit_entry_v3', {
+  const { error } = await client().rpc('submit_entry_v4', {
     p_work_date: input.work_date, p_normal_entry: values.normal_entry,
     p_point_exit: values.point_exit, p_final_exit: input.final_exit,
-    p_is_holiday: values.is_holiday,
+    p_is_holiday: values.is_holiday, p_location: values.location, p_glpi: values.glpi,
     p_overtime_start: input.overtime_start,
     p_final_exit_next_day: input.final_exit_next_day, p_note: input.note.trim(),
   })
@@ -66,10 +66,10 @@ export async function reviseEntry(id: string, input: EntryInput) {
   const invalid = entryValidationError(input)
   if (invalid) throw new Error(invalid)
   const values = entryValues(input)
-  const { error } = await client().rpc('revise_entry_v3', {
+  const { error } = await client().rpc('revise_entry_v4', {
     p_entry_id: id, p_work_date: input.work_date, p_normal_entry: values.normal_entry,
     p_point_exit: values.point_exit, p_final_exit: input.final_exit,
-    p_is_holiday: values.is_holiday,
+    p_is_holiday: values.is_holiday, p_location: values.location, p_glpi: values.glpi,
     p_overtime_start: input.overtime_start,
     p_final_exit_next_day: input.final_exit_next_day, p_note: input.note.trim(),
   })
@@ -95,10 +95,10 @@ export async function changeInvitation(id: string, status: 'pending' | 'revoked'
   check(error)
 }
 
-export async function updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean) {
-  const { error } = await client().rpc('admin_set_profile', {
+export async function updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean, receiveReminders = false) {
+  const { error } = await client().rpc('admin_set_profile_v2', {
     p_target: profile.id, p_full_name: name, p_role: role, p_active: active,
-    p_can_approve: approve, p_can_export: exportReport,
+    p_can_approve: approve, p_can_export: exportReport, p_receive_he_reminders: receiveReminders,
   })
   check(error)
 }

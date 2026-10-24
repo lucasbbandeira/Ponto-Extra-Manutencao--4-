@@ -34,6 +34,8 @@ export function entryValidationError(input: EntryInput): string | null {
   if (!requiredTimes.every(t => Number.isFinite(timeMinutes(t)))) return input.is_holiday
     ? 'Preencha o início e o término da hora extra.'
     : 'Preencha todos os horários: entrada normal, saída normal, início e término da hora extra.'
+  if ((input.location ?? '').trim().length > 200) return 'A localização pode ter até 200 caracteres.'
+  if ((input.glpi ?? '').trim().length > 100) return 'O GLPI pode ter até 100 caracteres.'
   if (!input.note.trim()) return 'Preencha a descrição do serviço realizado.'
   if (input.note.trim().length > 1000) return 'A descrição pode ter até 1.000 caracteres.'
   if (typeof input.final_exit_next_day !== 'boolean') return 'Confira se o término ocorreu no dia seguinte.'
@@ -46,6 +48,8 @@ export function entryValidationError(input: EntryInput): string | null {
 export function entryValues(input: EntryInput) {
   return {
     ...input,
+    location: input.location?.trim() || null,
+    glpi: input.glpi?.trim() || null,
     normal_entry: input.is_holiday ? null : input.normal_entry,
     point_exit: input.is_holiday ? null : input.point_exit,
     note: input.note.trim(),

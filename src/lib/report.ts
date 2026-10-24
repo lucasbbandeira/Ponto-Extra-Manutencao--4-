@@ -76,19 +76,20 @@ function safeSheetName(name: string, used: Set<string>) {
 }
 
 function buildPersonSheet(person: Profile, own: Entry[], period: string) {
-  const bodyCount = Math.max(17, own.length); const totalRow = 8 + bodyCount; const { values, styles } = emptyGrid(totalRow, 6)
-  values[3][1] = 'CONTROLE DE HORAS EXTRAS'; values[4][1] = `Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0, 4)}. Preenchimento gerado após aprovação.`; values[5][1] = person.full_name.toUpperCase(); values[6][1] = 'DATA'; values[6][2] = 'ENTRADA'; values[6][3] = 'SAÍDA'; values[6][4] = 'TIPO'; values[6][5] = 'JUSTIFICATIVA'
-  setRowStyle(styles, 3, 1, 1, 6); setRowStyle(styles, 4, 2, 1, 6); setRowStyle(styles, 5, 8, 1, 6); setRowStyle(styles, 6, 3, 1, 6)
-  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), overtimeStart(e), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, e.is_holiday ? 'Feriado' : 'Dia normal', e.note?.trim() ? e.note : 'Não informada no registro original.']; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4; styles[7 + i][4] = 5; styles[7 + i][5] = 11 }
+  const bodyCount = Math.max(17, own.length); const totalRow = 8 + bodyCount; const { values, styles } = emptyGrid(totalRow, 8)
+  values[3][1] = 'CONTROLE DE HORAS EXTRAS'; values[4][1] = `Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0, 4)}. Preenchimento gerado após aprovação.`; values[5][1] = person.full_name.toUpperCase(); values[6][1] = 'DATA'; values[6][2] = 'ENTRADA'; values[6][3] = 'SAÍDA'; values[6][4] = 'TIPO'; values[6][5] = 'JUSTIFICATIVA'; values[6][6] = 'LOCALIZAÇÃO'; values[6][7] = 'GLPI'
+  setRowStyle(styles, 3, 1, 1, 8); setRowStyle(styles, 4, 2, 1, 8); setRowStyle(styles, 5, 8, 1, 8); setRowStyle(styles, 6, 3, 1, 8)
+  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), overtimeStart(e), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, e.is_holiday ? 'Feriado' : 'Dia normal', e.note?.trim() ? e.note : 'Não informada no registro original.', e.location || 'Não informado', e.glpi || 'Não informado']; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4; styles[7 + i][4] = 5; styles[7 + i][5] = 11; styles[7 + i][6] = 11; styles[7 + i][7] = 11 }
   values[totalRow - 1][1] = 'TOTAL'; values[totalRow - 1][3] = formatMinutes(own.reduce((sum, e) => sum + e.minutes, 0)); setRowStyle(styles, totalRow - 1, 7, 1, 4)
   // Texto completo na mesma linha do lançamento, com quebra e altura para descrições longas.
   const rowHeights = Array<number>(totalRow).fill(0)
   for (let i = 0; i < own.length; i++) {
     const note = String(values[7 + i][5] ?? '')
+    const extraLines = Math.max(Math.ceil([...(own[i].location || '')].length / 24), Math.ceil([...(own[i].glpi || '')].length / 16))
     const lines = note.split(/\r\n|\r|\n/).reduce((sum, line) => sum + Math.max(1, Math.ceil([...line].length / 60)), 0)
-    rowHeights[7 + i] = Math.min(409.5, Math.max(24, lines * 16 + 8))
+    rowHeights[7 + i] = Math.min(409.5, Math.max(24, Math.max(lines, extraLines) * 16 + 8))
   }
-  return sheetXml(values, styles, { cols: '<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="5" width="22"/><col min="6" max="6" width="78"/>', merges: ['B4:F4', 'B5:F5', 'B6:F6'], autoFilter: `B7:F${totalRow - 1}`, rowHeights, freezeRows: 7 })
+  return sheetXml(values, styles, { cols: '<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="5" width="22"/><col min="6" max="6" width="78"/><col min="7" max="7" width="32"/><col min="8" max="8" width="22"/>', merges: ['B4:H4', 'B5:H5', 'B6:H6'], autoFilter: `B7:H${totalRow - 1}`, rowHeights, freezeRows: 7 })
 }
 
 // ZIP sem compressão: o arquivo é pequeno e não depende de bibliotecas externas no navegador.

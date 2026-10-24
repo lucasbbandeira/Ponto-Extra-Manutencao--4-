@@ -9,6 +9,7 @@ export interface Profile {
   active: boolean
   approval_status: 'pending' | 'approved' | 'rejected'
   can_approve: boolean
+  receive_he_reminders?: boolean
   can_export: boolean
   created_at: string
   updated_at: string
@@ -37,6 +38,8 @@ export interface Entry {
   final_exit: string
   final_exit_next_day: boolean
   minutes: number
+  location?: string | null
+  glpi?: string | null
   note: string
   status: Status
   rejection_reason: string | null
@@ -54,6 +57,8 @@ export interface EntryInput {
   overtime_start: string
   final_exit: string
   final_exit_next_day: boolean
+  location?: string | null
+  glpi?: string | null
   note: string
 }
 

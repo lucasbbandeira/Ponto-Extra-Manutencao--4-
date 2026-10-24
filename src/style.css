@@ -25,3 +25,9 @@
 /* Consulta da administração: justificativa acessível também nos detalhes. */
 .entry-justification { min-width: 200px; max-width: 320px; white-space: normal; overflow-wrap: anywhere; }
 .role-badge.analyst { color: #425b83; background: #eaf0fb; }
+
+.optional-context { margin: 16px 0; }
+.optional-context label small { color: #657782; font-weight: 400; }
+.recent-context { display: block; color: #657782; font-size: 11px; margin-top: 4px; overflow-wrap: anywhere; }
+.entry-context { white-space: normal; min-width: 110px; max-width: 220px; overflow-wrap: anywhere; }
+.detail-grid strong { overflow-wrap: anywhere; }
