@@ -1,4 +1,6 @@
 import { formatDate, formatMinutes, monthName, overtimeStart } from './time.ts'
+import { detailedDescription } from './workflow.ts'
+import type { comparison } from './analytics.ts'
 import type { Entry, Profile } from './types.ts'
 
 type Cell = string | number | null
@@ -75,21 +77,39 @@ function safeSheetName(name: string, used: Set<string>) {
   used.add(candidate); return candidate
 }
 
+function reportChunks(note: string): string[] {
+  const estimated = note.split(/\r\n|\r|\n/).reduce((n,line)=>n+Math.max(1,Math.ceil([...line].length/60)),0)
+  if (estimated <= 24) return [note]
+  const lines = note.split(/\r\n|\r|\n/).flatMap(line => {
+    const chars=[...line]; const result:string[]=[]
+    for(let i=0;i<chars.length;i+=60) result.push(chars.slice(i,i+60).join(''))
+    return result.length?result:['']
+  })
+  const chunks:string[]=[]
+  for(let i=0;i<lines.length;i+=24)chunks.push(lines.slice(i,i+24).join('\n'))
+  return chunks
+}
 function buildPersonSheet(person: Profile, own: Entry[], period: string) {
-  const bodyCount = Math.max(17, own.length); const totalRow = 8 + bodyCount; const { values, styles } = emptyGrid(totalRow, 8)
-  values[3][1] = 'CONTROLE DE HORAS EXTRAS'; values[4][1] = `Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0, 4)}. Preenchimento gerado após aprovação.`; values[5][1] = person.full_name.toUpperCase(); values[6][1] = 'DATA'; values[6][2] = 'ENTRADA'; values[6][3] = 'SAÍDA'; values[6][4] = 'TIPO'; values[6][5] = 'JUSTIFICATIVA'; values[6][6] = 'LOCALIZAÇÃO'; values[6][7] = 'GLPI'
-  setRowStyle(styles, 3, 1, 1, 8); setRowStyle(styles, 4, 2, 1, 8); setRowStyle(styles, 5, 8, 1, 8); setRowStyle(styles, 6, 3, 1, 8)
-  for (let i = 0; i < bodyCount; i++) { const e = own[i]; if (e) values[7 + i] = [null, formatDate(e.work_date), overtimeStart(e), `${e.final_exit.slice(0, 5)}${e.final_exit_next_day ? ' (+1 dia)' : ''}`, e.is_holiday ? 'Feriado' : 'Dia normal', e.note?.trim() ? e.note : 'Não informada no registro original.', e.location || 'Não informado', e.glpi || 'Não informado']; styles[7 + i][1] = 4; styles[7 + i][2] = 4; styles[7 + i][3] = 4; styles[7 + i][4] = 5; styles[7 + i][5] = 11; styles[7 + i][6] = 11; styles[7 + i][7] = 11 }
-  values[totalRow - 1][1] = 'TOTAL'; values[totalRow - 1][3] = formatMinutes(own.reduce((sum, e) => sum + e.minutes, 0)); setRowStyle(styles, totalRow - 1, 7, 1, 4)
-  // Texto completo na mesma linha do lançamento, com quebra e altura para descrições longas.
-  const rowHeights = Array<number>(totalRow).fill(0)
-  for (let i = 0; i < own.length; i++) {
-    const note = String(values[7 + i][5] ?? '')
-    const extraLines = Math.max(Math.ceil([...(own[i].location || '')].length / 24), Math.ceil([...(own[i].glpi || '')].length / 16))
-    const lines = note.split(/\r\n|\r|\n/).reduce((sum, line) => sum + Math.max(1, Math.ceil([...line].length / 60)), 0)
-    rowHeights[7 + i] = Math.min(409.5, Math.max(24, Math.max(lines, extraLines) * 16 + 8))
+  const body: Cell[][]=[]
+  for(const e of own) {
+    const chunks=reportChunks(detailedDescription(e) || 'Não informada no registro original.')
+    chunks.forEach((note,index)=>body.push(index===0 ? [null,formatDate(e.work_date),overtimeStart(e),`${e.final_exit.slice(0,5)}${e.final_exit_next_day?' (+1 dia)':''}`,e.is_holiday?'Feriado':'Dia normal',note,e.location||'Não informado',e.glpi||'Não informado'] : [null,'Continuação',null,null,null,note,null,null]))
   }
-  return sheetXml(values, styles, { cols: '<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="5" width="22"/><col min="6" max="6" width="78"/><col min="7" max="7" width="32"/><col min="8" max="8" width="22"/>', merges: ['B4:H4', 'B5:H5', 'B6:H6'], autoFilter: `B7:H${totalRow - 1}`, rowHeights, freezeRows: 7 })
+  const bodyCount=Math.max(17,body.length),totalRow=8+bodyCount,{values,styles}=emptyGrid(totalRow,8)
+  values[3][1]='CONTROLE DE HORAS EXTRAS';values[4][1]=`Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0,4)}. Somente horas aprovadas.`;values[5][1]=person.full_name.toUpperCase()
+  values[6]=[null,'DATA','ENTRADA','SAÍDA','TIPO','JUSTIFICATIVA','LOCALIZAÇÃO','GLPI']
+  setRowStyle(styles,3,1,1,8);setRowStyle(styles,4,2,1,8);setRowStyle(styles,5,8,1,8);setRowStyle(styles,6,3,1,8)
+  const rowHeights=Array<number>(totalRow).fill(0)
+  for(let i=0;i<bodyCount;i++) {
+    if(body[i])values[7+i]=body[i]
+    for(let col=1;col<8;col++)styles[7+i][col]=col<=3?4:col===4?5:11
+    const note=String(values[7+i][5]??'')
+    const lines=note.split(/\r\n|\r|\n/).reduce((n,line)=>n+Math.max(1,Math.ceil([...line].length/60)),0)
+    const context=Math.max(Math.ceil([...String(values[7+i][6]??'')].length/24),Math.ceil([...String(values[7+i][7]??'')].length/16))
+    rowHeights[7+i]=Math.min(409.5,Math.max(24,Math.max(lines,context)*16+8))
+  }
+  values[totalRow-1][1]='TOTAL';values[totalRow-1][3]=formatMinutes(own.reduce((n,e)=>n+e.minutes,0));setRowStyle(styles,totalRow-1,7,1,4)
+  return sheetXml(values,styles,{cols:'<col min="1" max="1" width="3"/><col min="2" max="2" width="19"/><col min="3" max="4" width="16"/><col min="5" max="5" width="22"/><col min="6" max="6" width="78"/><col min="7" max="7" width="32"/><col min="8" max="8" width="22"/>',merges:['B4:H4','B5:H5','B6:H6'],autoFilter:`B7:H${totalRow-1}`,rowHeights,freezeRows:7})
 }
 
 // ZIP sem compressão: o arquivo é pequeno e não depende de bibliotecas externas no navegador.
@@ -108,6 +128,14 @@ export function makeReport(entries: Entry[], profiles: Profile[], period: string
   if (!approved.length) throw new Error('Não há lançamentos aprovados para o mês e manutentor selecionados.')
   const usedNames = new Set<string>()
   const sheets = selectedWorkers.map(person => ({ name: safeSheetName(person.full_name, usedNames), xml: buildPersonSheet(person, approved.filter(e => e.worker_id === person.id), period) }))
+  const bytes = workbook(sheets)
+  const [year, month] = period.split('-').map(Number)
+  const personName = selectedWorkers[0].full_name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, '_').replace(/^[._]+|[._]+$/g, '').slice(0, 120) || 'Manutentor'
+  const personSuffix = workerId ? `_${personName}` : ''
+  return { filename: `Horas_extras${personSuffix}_${monthName(month).replace(/\s/g, '_')}_${year}.xlsx`, blob: new Blob([bytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) }
+}
+
+function workbook(sheets: {name:string;xml:string}[]): Uint8Array {
   const sheetEntries = sheets.map((sheet, i) => `<sheet name="${xml(sheet.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join(''); const relationships = sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join(''); const overrides = sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
   const files: [string, string][] = [
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${overrides}</Types>`],
@@ -116,8 +144,29 @@ export function makeReport(entries: Entry[], profiles: Profile[], period: string
     ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
     ['xl/styles.xml', stylesXml], ...sheets.map((sheet, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheet.xml] as [string, string]),
   ]
-  const bytes = zip(files); const [year, month] = period.split('-').map(Number)
-  const personName = selectedWorkers[0].full_name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, '_').replace(/^[._]+|[._]+$/g, '').slice(0, 120) || 'Manutentor'
-  const personSuffix = workerId ? `_${personName}` : ''
-  return { filename: `Horas_extras${personSuffix}_${monthName(month).replace(/\s/g, '_')}_${year}.xlsx`, blob: new Blob([bytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) }
+  return zip(files)
+}
+
+export function makeComparisonReport(data: ReturnType<typeof comparison>, profiles:Profile[], from:string, to:string, workerId='') {
+  const simpleSheet=(headers:string[],rows:Cell[][],widths:number[])=>{
+    const all=[headers,...rows], styles=all.map((row,i)=>row.map(()=>i===0?3:11))
+    return sheetXml(all,styles,{cols:widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}"/>`).join(''),freezeRows:1,autoFilter:`A1:${colLetter(headers.length)}${all.length}`,rowHeights:all.map((row,i)=>i ? Math.min(409.5,Math.max(30,...row.map((value,c)=>String(value??'').split('\n').reduce((sum,line)=>sum+Math.max(1,Math.ceil(line.length/Math.max(8,widths[c]-3))),0)*16+8))) : 32)})
+  }
+  const names=new Map(profiles.map(p=>[p.id,p.full_name]))
+  const used=new Set<string>()
+  const sheets=[
+    {name:safeSheetName('Comparativo mensal',used),xml:simpleSheet(['Mês','Horas aprovadas','Horas pendentes','Atendimentos aprovados'],data.monthly.map(r=>[r.label,formatMinutes(r.approved),formatMinutes(r.pending),r.services]),[20,22,22,28])},
+    {name:safeSheetName('Por localização',used),xml:simpleSheet(['Localização informada','Horas aprovadas','Horas pendentes','Atendimentos aprovados'],data.locations.map(r=>[r.label,formatMinutes(r.approved),formatMinutes(r.pending),r.services]),[55,22,22,28])},
+    {name:safeSheetName('Dados para análise',used),xml:simpleSheet(['Manutentor','Data','Situação','Minutos','Horas','Localização','GLPI','Justificativa e atividades'],data.selected.flatMap(e=>reportChunks(detailedDescription(e)).map((note,i)=>[names.get(e.worker_id)||'Manutentor',formatDate(e.work_date),i?'Continuação':e.status==='approved'?'Aprovada':e.status==='pending'?'Pendente':'Devolvida',i?null:e.minutes,i?null:formatMinutes(e.minutes),e.location||'Não informado',e.glpi||'Não informado',note])),[30,18,18,15,18,40,22,78])},
+    {name:safeSheetName('Critérios',used),xml:simpleSheet(['Critério','Descrição'],[
+      ['Período',`${from} a ${to}`],['Manutentor',workerId?names.get(workerId)||workerId:'Toda a equipe'],
+      ['Horas','Somadas por pessoa. Participantes informativos não acrescentam horas.'],
+      ['Atendimentos','Somente aprovados. Mesmo GLPI e data contam uma vez. Sem GLPI, cada lançamento conta uma vez.'],
+      ['Localização','Texto livre, agrupado exatamente como informado; sem preenchimento: Não informado.'],
+      ['Variação','Compara os dois meses finais do filtro; sem horas no anterior, não calcula percentual.'],
+      ['Continuações','Linhas com texto extenso não repetem minutos e horas. Anexos ficam somente no sistema.'],
+    ],[28,110])},
+  ]
+  const bytes=workbook(sheets)
+  return {filename:`Comparativo_HE_${from}_a_${to}.xlsx`,blob:new Blob([bytes.buffer as ArrayBuffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
 }

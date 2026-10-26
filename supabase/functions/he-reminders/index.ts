@@ -1,7 +1,7 @@
 // Arquivo único: pode ser publicado pelo Dashboard do Supabase ou pela CLI.
 // Nenhum segredo deste arquivo deve ser copiado para variáveis VITE_*.
 type Env = (name: string) => string | undefined
-type Item = { id: string; worker: string; work_date: string; minutes: number; location?: string; glpi?: string }
+type Item = { id: string; worker: string; work_date: string; minutes: number; location?: string; glpi?: string; delay_hours?: number }
 type Batch = { id: string; email: string; entries: Item[] }
 type Fetcher = typeof fetch
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!))
@@ -10,10 +10,10 @@ const date = (value: string) => value.split('-').reverse().join('/')
 
 export function reminderMessage(batch: Batch, appUrl: string) {
   const lines = batch.entries.map(e => `${e.worker} | ${date(e.work_date)} | ${hours(e.minutes)} | Localização: ${e.location || 'Não informado'} | GLPI: ${e.glpi || 'Não informado'}`)
-  const text = `Prezados gestores,\n\nOs lançamentos abaixo aguardam análise há mais de 48 horas desde o envio:\n\n${lines.join('\n')}\n\nPor gentileza, acessem o sistema para conferir e aprovar ou devolver para correção.\n\nAcessar o sistema: ${appUrl}\n\nEste lembrete é automático. Se o lançamento foi analisado recentemente, confira a situação atual no sistema.\nPonto Extra · Manutenção`
+  const text = `Prezados gestores,\n\nOs lançamentos abaixo aguardam análise além do prazo de acompanhamento (24h ou 48h desde o envio):\n\n${lines.join('\n')}\n\nPor gentileza, acessem o sistema para conferir e aprovar ou devolver para correção.\n\nAcessar o sistema: ${appUrl}\n\nEste lembrete é automático. Se o lançamento foi analisado recentemente, confira a situação atual no sistema.\nPonto Extra · Manutenção`
   const rows = batch.entries.map(e => `<tr><td>${escapeHtml(e.worker)}</td><td>${escapeHtml(date(e.work_date))}</td><td>${escapeHtml(hours(e.minutes))}</td><td>${escapeHtml(e.location || 'Não informado')}</td><td>${escapeHtml(e.glpi || 'Não informado')}</td></tr>`).join('')
-  const html = `<html><body style="font-family:Arial,sans-serif;color:#233b48;line-height:1.6"><h2>Horas extras aguardando análise</h2><p>Prezados gestores,</p><p>Os lançamentos abaixo aguardam análise há <strong>mais de 48 horas desde o envio</strong>:</p><table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;border-color:#dbe3e8"><thead><tr><th>Manutentor</th><th>Data do trabalho</th><th>Horas extras</th><th>Localização</th><th>GLPI</th></tr></thead><tbody>${rows}</tbody></table><p>Por gentileza, acessem o sistema para conferir e aprovar ou devolver para correção.</p><p><a href="${escapeHtml(appUrl)}">Acessar o sistema</a></p><small>Este lembrete é automático. Se o lançamento foi analisado recentemente, confira a situação atual no sistema.<br>Ponto Extra · Manutenção</small></body></html>`
-  return { subject: 'Horas extras pendentes de análise há mais de 48 horas', text, html }
+  const html = `<html><body style="font-family:Arial,sans-serif;color:#233b48;line-height:1.6"><h2>Horas extras aguardando análise</h2><p>Prezados gestores,</p><p>Os lançamentos abaixo aguardam análise <strong>além do prazo de acompanhamento (24h ou 48h desde o envio)</strong>:</p><table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;border-color:#dbe3e8"><thead><tr><th>Manutentor</th><th>Data do trabalho</th><th>Horas extras</th><th>Localização</th><th>GLPI</th></tr></thead><tbody>${rows}</tbody></table><p>Por gentileza, acessem o sistema para conferir e aprovar ou devolver para correção.</p><p><a href="${escapeHtml(appUrl)}">Acessar o sistema</a></p><small>Este lembrete é automático. Se o lançamento foi analisado recentemente, confira a situação atual no sistema.<br>Ponto Extra · Manutenção</small></body></html>`
+  return { subject: 'Lembrete: horas extras pendentes de análise', text, html }
 }
 
 async function sameSecret(a: string, b: string) {
@@ -50,6 +50,11 @@ export function createReminderHandler(env: Env, fetcher: Fetcher = fetch) {
         return reply({ok:provider.ok,mode:'check',provider_authorized:provider.ok,...status},provider.ok ? 200 : 502)
       }
       const batches: {id:string}[] = await rpc('he_claim_batches')
+      // Mantém a conexão verificada mesmo sem pendências; nenhuma mensagem é enviada aqui.
+      if (!batches.length) {
+        const provider=await fetcher('https://api.brevo.com/v3/account',{headers:{'api-key':apiKey},signal:AbortSignal.timeout(15000)})
+        if(!provider.ok) return reply({error:'provider_not_authorized'},502)
+      }
       let sent=0,failed=0,unknown=0,skipped=0
       for (const candidate of batches) {
         const batch: Batch | null = await rpc('he_prepare_batch',{p_batch_id:candidate.id})
@@ -59,7 +64,7 @@ export function createReminderHandler(env: Env, fetcher: Fetcher = fetch) {
         try {
           const response = await fetcher('https://api.brevo.com/v3/smtp/email',{
             method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','api-key':apiKey},
-            body:JSON.stringify({sender:{name:env('HE_MAIL_FROM_NAME') || 'Ponto Extra · Manutenção',email:from},to:[{email:batch.email}],subject:message.subject,textContent:message.text,htmlContent:message.html,headers:{idempotencyKey:batch.id},tags:['he-48h']}),
+            body:JSON.stringify({sender:{name:env('HE_MAIL_FROM_NAME') || 'Ponto Extra · Manutenção',email:from},to:[{email:batch.email}],subject:message.subject,textContent:message.text,htmlContent:message.html,headers:{idempotencyKey:batch.id},tags:['he-pendencias']}),
             signal:AbortSignal.timeout(20000)
           })
           if (response.ok) {

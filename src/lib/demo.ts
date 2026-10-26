@@ -1,4 +1,6 @@
-import { entryValidationError, entryValues, formatDate, localToday, overtimeMinutes } from './time.ts'
+import { newId } from './id.ts'
+import { entryValues, formatDate, localToday, overtimeMinutes } from './time.ts'
+import { workflowValidationError } from './workflow.ts'
 import type { DataSet, Entry, EntryInput, Event, Invitation, Profile, Role } from './types'
 
 const now = new Date().toISOString()
@@ -12,11 +14,12 @@ const daysAgo = (days: number) => {
 const people: [string, string, Role][] = [
   ['maycon', 'Maycon', 'maintainer'], ['paulo', 'Paulo', 'maintainer'],
   ['elciney', 'Elciney', 'maintainer'], ['mathus', 'Mathus', 'maintainer'],
-  ['analista', 'Analista da administração', 'analyst'], ['marcelo', 'Marcelo Bogo', 'supervisor'], ['admin', 'Administrador', 'admin'],
+  ['leonardo', 'Leonardo', 'supervisor'], ['analista', 'Analista da administração', 'analyst'], ['marcelo', 'Marcelo Bogo', 'supervisor'], ['admin', 'Administrador', 'admin'],
 ]
 
 export const demoProfiles: Profile[] = people.map(([id, name, role]) => ({
   id, full_name: name, email: `${id}@exemplo.com`, role, active: true,
+  he_reminder_delay_hours: id === 'marcelo' ? 24 : 48, receive_he_reminders: role === 'supervisor',
   approval_status: 'approved',
   can_approve: role === 'admin' || role === 'supervisor', can_export: role !== 'maintainer',
   created_at: now, updated_at: now,
@@ -48,6 +51,12 @@ function record(id: string, worker_id: string, ago: number, point_exit: string,
   }
 }
 
+entries[0] = { ...entries[0], workflow_version: 2, overtime_start: '17:10', location: 'Cozinha principal', glpi: '6438', participants: [{id:'paulo',name:'Paulo'}], activities: [
+ {start:'17:10',end:'17:25',start_next_day:false,end_next_day:false,description:'Avaliação do equipamento e retirada de materiais'},
+ {start:'17:25',end:'19:20',start_next_day:false,end_next_day:false,description:'Substituição do componente e manutenção'},
+ {start:'19:20',end:'19:45',start_next_day:false,end_next_day:false,description:'Testes e organização do local'}], attachments: [] }
+// Dois meses anteriores para mostrar o comparativo sem depender do calendário do dia.
+for (let n=1;n<=2;n++) { const date=new Date(`${today.slice(0,7)}-15T12:00:00Z`); date.setUTCMonth(date.getUTCMonth()-n); entries.push({...record(`past-${n}`,'maycon',0,'18:00','20:00','approved','Serviço de demonstração'),work_date:date.toISOString().slice(0,10),location:'Cozinha principal',glpi:`demo-${n}`}) }
 let invitations: Invitation[] = []
 let current = 'admin'
 let events: Event[] = entries.map((e, i) => ({
@@ -61,6 +70,7 @@ export const demoNotice = `Demonstração com dados fictícios. ${formatDate(tod
 export const demoApi = {
   async loadData(): Promise<DataSet> {
     return {
+      coworkers: demoProfiles.filter(p => p.role === 'maintainer' && p.active).map(p => ({id:p.id, full_name:p.full_name})),
       profiles: demoProfiles.map(p => ({ ...p })),
       entries: entries.filter(e => demoRole().role !== 'maintainer' || e.worker_id === current).map(e => ({ ...e })),
       invitations: current === 'admin' ? invitations.map(i => ({ ...i })) : [],
@@ -68,22 +78,22 @@ export const demoApi = {
   },
   async submitEntry(input: EntryInput) {
     if (demoRole().role !== 'maintainer') throw new Error('Use o acesso de manutentor para registrar horas.')
-    const invalid = entryValidationError(input)
+    const invalid = workflowValidationError(input)
     if (invalid) throw new Error(invalid)
-    const e = record(crypto.randomUUID(), current, 0, input.overtime_start, input.final_exit,
+    const e = record(newId(), current, 0, input.overtime_start, input.final_exit,
       'pending', input.note, input.final_exit_next_day)
-    Object.assign(e, entryValues(input))
+    Object.assign(e, entryValues(input), { workflow_version: 2, participants: (input.helper_ids ?? []).map(id => ({ id, name: demoProfiles.find(p => p.id === id)?.full_name ?? 'Manutentor' })) })
     e.minutes = overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day)
     entries = [e, ...entries]
     events = [{ id: Date.now(), entry_id: e.id, actor_id: current, action: 'submitted', snapshot: { ...e }, created_at: now }, ...events]
   },
-  async reviseEntry(id: string, input: EntryInput) {
+  async reviseEntry(id: string, input: EntryInput, legacy = false) {
     if (demoRole().role !== 'maintainer' || !demoRole().active) throw new Error('Sem permissão para corrigir horas.')
-    const invalid = entryValidationError(input)
+    const invalid = workflowValidationError(input, legacy)
     if (invalid) throw new Error(invalid)
     const e = entries.find(x => x.id === id)
     if (!e || e.worker_id !== current || e.status !== 'rejected') throw new Error('Lançamento indisponível para correção.')
-    Object.assign(e, entryValues(input), { minutes: overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day),
+    Object.assign(e, entryValues(input), { participants: (input.helper_ids ?? []).map(id => ({id, name: demoProfiles.find(p => p.id === id)?.full_name ?? 'Manutentor'})), minutes: overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day),
       status: 'pending', rejection_reason: null, reviewed_by: null, reviewed_at: null, submitted_at: now })
     events = [{ id: Date.now(), entry_id: id, actor_id: current, action: 'revised', snapshot: { ...e }, created_at: now }, ...events]
   },
@@ -101,19 +111,19 @@ export const demoApi = {
   async createInvitation(email: string, name: string, role: Role, adminId: string) {
     if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     if (invitations.some(i => i.email === email)) throw new Error('Este e-mail já foi autorizado.')
-    invitations = [{ id: crypto.randomUUID(), email, full_name: name, role, status: 'pending',
+    invitations = [{ id: newId(), email, full_name: name, role, status: 'pending',
       invited_by: adminId, claimed_by: null, created_at: now, claimed_at: null }, ...invitations]
   },
   async changeInvitation(id: string, status: 'pending' | 'revoked') {
     if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     invitations = invitations.map(i => i.id === id ? { ...i, status } : i)
   },
-  async updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean, receiveReminders = false) {
+  async updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean, receiveReminders = false, delayHours = 48) {
     if (demoRole().role !== 'admin' || !demoRole().active) throw new Error('Somente administradores podem administrar usuários.')
     const p = demoProfiles.find(x => x.id === profile.id)
     if (!p) throw new Error('Usuário não encontrado.')
     if (p.id === 'admin' && (!active || role !== 'admin')) throw new Error('O administrador principal deve permanecer ativo.')
-    Object.assign(p, { full_name: name, role, active,
+    Object.assign(p, { he_reminder_delay_hours: delayHours, full_name: name, role, active,
       can_approve: role === 'admin' || (role === 'supervisor' && approve),
       receive_he_reminders: role === 'supervisor' && approve && receiveReminders,
       can_export: role === 'admin' || role === 'analyst' || (role === 'supervisor' && exportReport) })

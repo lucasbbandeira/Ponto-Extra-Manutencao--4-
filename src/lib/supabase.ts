@@ -1,6 +1,8 @@
+import { newId } from './id'
 import { createClient } from '@supabase/supabase-js'
-import type { EntryInput, Profile, DataSet, Invitation, Event, Role } from './types'
-import { entryValidationError, entryValues } from './time'
+import type { EntryInput, Profile, DataSet, Invitation, Event, Role, Attachment, Coworker } from './types'
+import { entryValues } from './time'
+import { workflowValidationError, attachmentError } from './workflow'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
@@ -17,8 +19,8 @@ function client() {
 
 function check(error: { message: string; code?: string } | null) {
   if (!error) return
-  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v4|admin_set_profile_v2/.test(error.message)) {
-    throw new Error('Falta aplicar a atualização no Supabase. Execute ATUALIZAR-LOCAL-GLPI-LEMBRETES.sql antes de usar os novos campos.')
+  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v[45]|admin_set_profile_v[23]|he_coworkers/.test(error.message)) {
+    throw new Error('Falta aplicar a atualização no Supabase. Execute ATUALIZAR-SISTEMA-COMPLETO.sql antes de usar os novos campos.')
   }
   throw new Error(error.message)
 }
@@ -41,18 +43,20 @@ export async function getProfile(id: string): Promise<Profile | null> {
 }
 
 export async function loadData(role: Role): Promise<DataSet> {
-  const [profiles, entries, invitations] = await Promise.all([
+  const [profiles, entries, invitations, coworkers] = await Promise.all([
     allRows<Profile>('profiles'), allRows<import('./types').Entry>('overtime_entries'),
     role === 'admin' ? allRows<Invitation>('invitations') : Promise.resolve([]),
+    role === 'maintainer' ? client().rpc('he_coworkers').then(({data,error}) => { check(error); return data as Coworker[] }) : Promise.resolve([]),
   ])
-  return { profiles, entries, invitations }
+  return { profiles, entries, invitations, coworkers }
 }
 
 export async function submitEntry(input: EntryInput) {
-  const invalid = entryValidationError(input)
+  const invalid = workflowValidationError(input)
   if (invalid) throw new Error(invalid)
   const values = entryValues(input)
-  const { error } = await client().rpc('submit_entry_v4', {
+  const { error } = await client().rpc('submit_entry_v5', {
+    p_request_id: input.request_id, p_activities: input.activities ?? [], p_helper_ids: input.helper_ids ?? [], p_attachments: input.attachments ?? [],
     p_work_date: input.work_date, p_normal_entry: values.normal_entry,
     p_point_exit: values.point_exit, p_final_exit: input.final_exit,
     p_is_holiday: values.is_holiday, p_location: values.location, p_glpi: values.glpi,
@@ -62,11 +66,12 @@ export async function submitEntry(input: EntryInput) {
   check(error)
 }
 
-export async function reviseEntry(id: string, input: EntryInput) {
-  const invalid = entryValidationError(input)
+export async function reviseEntry(id: string, input: EntryInput, legacy = false) {
+  const invalid = workflowValidationError(input, legacy)
   if (invalid) throw new Error(invalid)
   const values = entryValues(input)
-  const { error } = await client().rpc('revise_entry_v4', {
+  const { error } = await client().rpc('revise_entry_v5', {
+    p_activities: input.activities ?? [], p_helper_ids: input.helper_ids ?? [], p_attachments: input.attachments ?? [],
     p_entry_id: id, p_work_date: input.work_date, p_normal_entry: values.normal_entry,
     p_point_exit: values.point_exit, p_final_exit: input.final_exit,
     p_is_holiday: values.is_holiday, p_location: values.location, p_glpi: values.glpi,
@@ -95,9 +100,9 @@ export async function changeInvitation(id: string, status: 'pending' | 'revoked'
   check(error)
 }
 
-export async function updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean, receiveReminders = false) {
-  const { error } = await client().rpc('admin_set_profile_v2', {
-    p_target: profile.id, p_full_name: name, p_role: role, p_active: active,
+export async function updateProfile(profile: Profile, name: string, role: Role, active: boolean, approve: boolean, exportReport: boolean, receiveReminders = false, delayHours = 48) {
+  const { error } = await client().rpc('admin_set_profile_v3', {
+    p_delay_hours: delayHours, p_target: profile.id, p_full_name: name, p_role: role, p_active: active,
     p_can_approve: approve, p_can_export: exportReport, p_receive_he_reminders: receiveReminders,
   })
   check(error)
@@ -122,7 +127,43 @@ export async function getHistory(id: string): Promise<Event[]> {
 }
 
 export async function deleteEntry(id: string) {
+  const { data: original } = await client().from('overtime_entries').select('attachments').eq('id', id).maybeSingle()
   const { data, error } = await client().from('overtime_entries').delete().eq('id', id).select('id')
   check(error)
   if (!data?.length) throw new Error('Lançamento não encontrado ou acesso não autorizado. Atualize a página.')
+  const paths = (original?.attachments as Attachment[] | undefined)?.map(a => a.path) ?? []
+  if (paths.length) await client().storage.from('he-service-media').remove(paths)
+}
+
+const stagedFiles = new WeakMap<File, Attachment>()
+const extension: Record<string,string> = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif', 'video/mp4':'mp4', 'video/webm':'webm', 'video/quicktime':'mov' }
+export async function uploadMedia(files: File[], requestId: string, workerId: string): Promise<Attachment[]> {
+  const invalid = attachmentError(files)
+  if (invalid) throw new Error(invalid)
+  const uploaded: Attachment[] = []
+  try {
+    for (const file of files) {
+      let media = stagedFiles.get(file)
+      if (!media) {
+        media = { path: `${workerId}/${requestId}/${newId()}.${extension[file.type]}`, name: file.name.slice(0,200), mime: file.type, size: file.size }
+        stagedFiles.set(file, media)
+      }
+      const { error } = await client().storage.from('he-service-media').upload(media.path, file, {contentType:file.type, upsert:false})
+      if (error && String((error as {statusCode?:string}).statusCode) !== '409') throw error
+      uploaded.push(media)
+    }
+    return uploaded
+  } catch (error) {
+    await discardMedia(uploaded)
+    throw error
+  }
+}
+export async function discardMedia(items: Attachment[]) {
+  if (items.length) await client().storage.from('he-service-media').remove(items.map(a => a.path))
+}
+export async function mediaUrl(path: string) {
+  const { data, error } = await client().storage.from('he-service-media').createSignedUrl(path, 300)
+  check(error)
+  if (!data?.signedUrl) throw new Error('Não foi possível abrir o anexo.')
+  return data.signedUrl
 }
