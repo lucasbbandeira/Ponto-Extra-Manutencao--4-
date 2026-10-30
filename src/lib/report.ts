@@ -93,7 +93,7 @@ function buildPersonSheet(person: Profile, own: Entry[], period: string) {
   const body: Cell[][]=[]
   for(const e of own) {
     const chunks=reportChunks(detailedDescription(e) || 'Não informada no registro original.')
-    chunks.forEach((note,index)=>body.push(index===0 ? [null,formatDate(e.work_date),overtimeStart(e),`${e.final_exit.slice(0,5)}${e.final_exit_next_day?' (+1 dia)':''}`,e.is_holiday?'Feriado':'Dia normal',note,e.location||'Não informado',e.glpi||'Não informado'] : [null,'Continuação',null,null,null,note,null,null]))
+    chunks.forEach((note,index)=>body.push(index===0 ? [null,formatDate(e.work_date),overtimeStart(e),`${e.final_exit.slice(0,5)}${e.final_exit_next_day?' (+1 dia)':''}`,e.is_holiday?'Feriado':e.overtime_only?'Somente hora extra':'Dia normal',note,e.location||'Não informado',e.glpi||'Não informado'] : [null,'Continuação',null,null,null,note,null,null]))
   }
   const bodyCount=Math.max(17,body.length),totalRow=8+bodyCount,{values,styles}=emptyGrid(totalRow,8)
   values[3][1]='CONTROLE DE HORAS EXTRAS';values[4][1]=`Período: ${monthName(Number(period.slice(5)))} de ${period.slice(0,4)}. Somente horas aprovadas.`;values[5][1]=person.full_name.toUpperCase()

@@ -5,10 +5,10 @@ import {comparison,uniqueServices} from '../src/lib/analytics.ts'
 import {makeReport,makeComparisonReport} from '../src/lib/report.ts'
 const row=(start,end,description='Manutenção',start_next_day=false,end_next_day=false)=>({start,end,description,start_next_day,end_next_day})
 const base={work_date:'2026-10-26',is_holiday:false,normal_entry:'08:00',point_exit:'17:00',overtime_start:'18:00',final_exit:'20:00',final_exit_next_day:false,note:'Reparo na cozinha',location:'Cozinha',glpi:'100',activities:[row('18:00','18:15','Materiais'),row('18:15','20:00')],helper_ids:[]}
-test('novo cadastro exige local, GLPI, resumo e atividades; histórico mantém compatibilidade',()=>{
+test('novo cadastro exige local, GLPI e resumo sem atividades; histórico mantém compatibilidade',()=>{
  assert.equal(workflowValidationError(base),null)
  for(const key of ['location','glpi','note'])assert.ok(workflowValidationError({...base,[key]:''}),key)
- assert.ok(workflowValidationError({...base,activities:[]}))
+ assert.equal(workflowValidationError({...base,activities:[]}),null)
  assert.equal(workflowValidationError({...base,location:'',glpi:'',activities:[]},true),null)
 })
 test('atividades recusam lacunas, sobreposição, descrição vazia e período incompleto',()=>{
@@ -17,7 +17,7 @@ test('atividades recusam lacunas, sobreposição, descrição vazia e período i
 test('atividades à meia-noite e depois da meia-noite usam os dias explícitos',()=>{
  const midnight={...base,overtime_start:'22:00',point_exit:'21:00',final_exit:'02:00',final_exit_next_day:true,activities:[row('22:00','00:00','Reparo',false,true),row('00:00','02:00','Testes',true,true)]}
  assert.equal(workflowValidationError(midnight),null)
- assert.ok(workflowValidationError({...midnight,activities:[row('22:00','00:00'),row('00:00','02:00','Testes',true,true)]}))
+ assert.ok(activityValidationError({...midnight,activities:[row('22:00','00:00'),row('00:00','02:00','Testes',true,true)]}))
  assert.equal(workflowValidationError({...base,is_holiday:true,normal_entry:'',point_exit:''}),null)
 })
 test('anexos aceitam mídias limitadas e recusam HTML, SVG, vazios e excesso',()=>{
@@ -55,4 +55,12 @@ test('Excel extenso usa continuação legível e exportação analítica traz da
  assert.match(sheet,/Continuação/);assert.match(sheet,/Etapa 20/);assert.equal((sheet.match(/>2h00</g)||[]).length,1)
  const result=await unzip(makeComparisonReport(comparison([entry],'2026-10','2026-10'),people,'2026-10','2026-10').blob)
  assert.match(result.get('xl/workbook.xml'),/COMPARATIVO MENSAL/);assert.match(result.get('xl/worksheets/sheet3.xml'),/Materiais/);assert.doesNotMatch(result.get('xl/worksheets/sheet3.xml'),/private\/path/)
+})
+
+
+test('Excel novo sem etapas conserva justificativa e identifica somente hora extra',async()=>{
+ const fresh={...entry,activities:[],overtime_only:true,normal_entry:null,point_exit:null,note:'Troca de componente antes da jornada',overtime_start:'06:00',final_exit:'08:00'}
+ const files=await unzip(makeReport([fresh],people,'2026-10','a').blob),sheet=files.get('xl/worksheets/sheet1.xml')
+ assert.match(sheet,/Troca de componente antes da jornada/);assert.match(sheet,/Somente hora extra/);assert.match(sheet,/06:00/);assert.match(sheet,/08:00/);assert.match(sheet,/2h00/)
+ assert.doesNotMatch(sheet,/Materiais|Manutenção/)
 })

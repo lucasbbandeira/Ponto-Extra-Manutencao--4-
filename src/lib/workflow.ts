@@ -41,8 +41,6 @@ export function workflowValidationError(input: EntryInput, legacy = false): stri
   if (!legacy) {
     if (!input.location?.trim()) return 'Informe a localização do serviço.'
     if (!input.glpi?.trim()) return 'Informe o GLPI do serviço.'
-    const detail = activityValidationError(input)
-    if (detail) return detail
   }
   if (new Set(input.helper_ids ?? []).size !== (input.helper_ids ?? []).length) return 'Selecione cada participante apenas uma vez.'
   return null

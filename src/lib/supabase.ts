@@ -19,8 +19,8 @@ function client() {
 
 function check(error: { message: string; code?: string } | null) {
   if (!error) return
-  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v[45]|admin_set_profile_v[23]|he_coworkers/.test(error.message)) {
-    throw new Error('Falta aplicar a atualização no Supabase. Execute ATUALIZAR-SISTEMA-COMPLETO.sql antes de usar os novos campos.')
+  if (error.code === 'PGRST202' && /(?:submit|revise)_entry_v[456]|admin_set_profile_v[23]|he_coworkers/.test(error.message)) {
+    throw new Error('Falta aplicar a atualização no Supabase. Execute ATUALIZAR-CADASTRO-SIMPLIFICADO.sql antes de usar o novo cadastro.')
   }
   throw new Error(error.message)
 }
@@ -55,11 +55,11 @@ export async function submitEntry(input: EntryInput) {
   const invalid = workflowValidationError(input)
   if (invalid) throw new Error(invalid)
   const values = entryValues(input)
-  const { error } = await client().rpc('submit_entry_v5', {
+  const { error } = await client().rpc('submit_entry_v6', {
     p_request_id: input.request_id, p_activities: input.activities ?? [], p_helper_ids: input.helper_ids ?? [], p_attachments: input.attachments ?? [],
     p_work_date: input.work_date, p_normal_entry: values.normal_entry,
     p_point_exit: values.point_exit, p_final_exit: input.final_exit,
-    p_is_holiday: values.is_holiday, p_location: values.location, p_glpi: values.glpi,
+    p_is_holiday: values.is_holiday, p_overtime_only: input.overtime_only ?? false, p_location: values.location, p_glpi: values.glpi,
     p_overtime_start: input.overtime_start,
     p_final_exit_next_day: input.final_exit_next_day, p_note: input.note.trim(),
   })
@@ -70,11 +70,11 @@ export async function reviseEntry(id: string, input: EntryInput, legacy = false)
   const invalid = workflowValidationError(input, legacy)
   if (invalid) throw new Error(invalid)
   const values = entryValues(input)
-  const { error } = await client().rpc('revise_entry_v5', {
+  const { error } = await client().rpc('revise_entry_v6', {
     p_activities: input.activities ?? [], p_helper_ids: input.helper_ids ?? [], p_attachments: input.attachments ?? [],
     p_entry_id: id, p_work_date: input.work_date, p_normal_entry: values.normal_entry,
     p_point_exit: values.point_exit, p_final_exit: input.final_exit,
-    p_is_holiday: values.is_holiday, p_location: values.location, p_glpi: values.glpi,
+    p_is_holiday: values.is_holiday, p_overtime_only: input.overtime_only ?? false, p_location: values.location, p_glpi: values.glpi,
     p_overtime_start: input.overtime_start,
     p_final_exit_next_day: input.final_exit_next_day, p_note: input.note.trim(),
   })

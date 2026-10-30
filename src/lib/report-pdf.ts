@@ -62,9 +62,9 @@ export async function makePdfReport(entries: Entry[], profiles: Profile[], perio
       context = ''
       ensure(57)
       const label = `Lançamento ${String(index + 1).padStart(2, '0')} · ${formatDate(entry.work_date)}`
-      write(`${label} · ${entry.is_holiday ? 'Feriado' : 'Dia normal'}`, 11, 6)
-      write(`Entrada normal: ${entry.is_holiday ? 'Não se aplica' : entry.normal_entry?.slice(0, 5) || 'Não informada'}`)
-      write(`Saída normal: ${entry.is_holiday ? 'Não se aplica' : entry.point_exit?.slice(0, 5) || 'Não informada'}`)
+      write(`${label} · ${entry.is_holiday ? 'Feriado' : entry.overtime_only ? 'Somente hora extra' : 'Dia normal'}`, 11, 6)
+      write(`Entrada normal: ${(entry.is_holiday || entry.overtime_only) ? 'Não se aplica' : entry.normal_entry?.slice(0, 5) || 'Não informada'}`)
+      write(`Saída normal: ${(entry.is_holiday || entry.overtime_only) ? 'Não se aplica' : entry.point_exit?.slice(0, 5) || 'Não informada'}`)
       write(`Hora extra: ${overtimeStart(entry)} até ${entry.final_exit.slice(0, 5)}${entry.final_exit_next_day ? ' (dia seguinte)' : ''} · Total: ${formatMinutes(entry.minutes)}`)
       write('Justificativa / descrição do serviço:', 10, 6)
       context = `${label} · justificativa (continuação)`

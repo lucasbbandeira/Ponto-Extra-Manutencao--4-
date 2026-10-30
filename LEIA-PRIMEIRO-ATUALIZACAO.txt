@@ -1,0 +1,72 @@
+HORA EXTRA MANUTENÇÃO — ATUALIZAÇÃO DE 30/10/2026
+
+ALTERAÇÕES
+- Removido o detalhamento de atividades do cadastro e da correção.
+- Resumo do serviço continua obrigatório.
+- Nova opção “Registrar somente a hora extra”: dispensa entrada e saída normais,
+  sem classificar o dia como feriado. Data, início/fim da HE, resumo, localização e GLPI
+  continuam obrigatórios nos novos lançamentos. Feriado continua disponível.
+- Atividades antigas continuam nos detalhes e nas justificativas dos relatórios.
+- Registros, usuários, permissões, anexos, participantes e lembretes preservados.
+
+COMO ATUALIZAR
+1. Extraia este ZIP e faça uma cópia de segurança da sua pasta oficial.
+2. Abra a pasta OFICIAL no VS Code, a mesma já ligada ao Vercel e que tem package.json.
+   Não publique a partir da pasta recém-extraída.
+3. Da pasta extraída Hora-Extra-Manutencao-Atualizado, copie para a pasta oficial:
+   - src inteira;
+   - tests inteira;
+   - ATUALIZAR-CADASTRO-SIMPLIFICADO.sql;
+   - este arquivo de instruções.
+   Escolha Substituir quando solicitado. Preserve os .env e a pasta .vercel existentes.
+   As dependências não mudaram: não precisa substituir suas configurações.
+4. No SUPABASE, abra o mesmo projeto > SQL Editor > New query / Nova consulta.
+   Abra ATUALIZAR-CADASTRO-SIMPLIFICADO.sql no VS Code, copie TODO o conteúdo,
+   cole na nova consulta do Supabase e clique Run / Executar.
+   Resultado esperado: Cadastro simplificado atualizado. Registros anteriores preservados.
+   Esse SQL é incremental e repetível. Não execute os SQLs antigos ou bootstrap-admin.
+   Não é necessário refazer e-mails, Edge Function, secrets ou agendamento.
+5. No TERMINAL DO VS CODE (PowerShell), dentro da pasta oficial, execute UM POR VEZ:
+
+   npm.cmd install
+
+   npm.cmd test
+
+   npm.cmd run build
+
+   Continue somente se os testes passarem sem falhas e o build concluir.
+6. Confira a ligação com o projeto Vercel:
+
+   npx.cmd vercel project inspect --non-interactive
+
+   Confirme que é o mesmo projeto do site horaextramanutencao.vercel.app.
+   Se pedir login, use a mesma conta. Se aparecer link_required ou outro projeto,
+   pare e confira se está na pasta oficial. Não aceite criar um projeto novo.
+7. Com o projeto correto identificado, publique:
+
+   npx.cmd vercel --prod
+
+   Se o npx perguntar para instalar o Vercel, responda y. Espere concluir.
+   Se usa integração com GitHub, mantenha a alteração no repositório também:
+   confira git status e faça commit somente dos arquivos desta atualização.
+   Não precisa publicar por dois caminhos diferentes.
+8. Abra o site e pressione Ctrl+F5. Confira:
+   - Ausência de Adicionar atividade e do detalhamento.
+   - Presença de Registrar somente a hora extra.
+   - Ao marcar, entrada e saída normais ficam desativadas.
+   - Ao desmarcar, voltam a ser obrigatórias, salvo se Feriado estiver marcado.
+   - Resumo, data, início/fim da HE, localização e GLPI obrigatórios nos novos registros.
+   - Confira também feriado, um lançamento antigo e a planilha de relatório.
+   Remova registros de teste pelo recurso autorizado do administrador.
+
+VALIDAÇÃO
+52 testes passaram sem falhas, incluindo interface, cálculo, Excel, permissões,
+banco Postgres local, preservação de registros, correções e lembretes.
+Build de produção concluído. A restrição de horários instalada no banco real foi
+consultada somente para leitura e reproduzida nos testes.
+Esta entrega NÃO aplica alterações ao banco real nem publica no site: siga as etapas.
+
+PACOTE
+Código completo, com SQLs anteriores preservados como histórico.
+Não inclui node_modules, dist, configurações pessoais .env, histórico Git ou vínculo
+pessoal com Vercel. Esses arquivos devem ser mantidos na sua pasta oficial.

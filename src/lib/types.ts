@@ -49,6 +49,7 @@ export interface Entry {
   work_date: string
   normal_entry: string | null
   point_exit: string | null
+  overtime_only?: boolean
   is_holiday?: boolean
   overtime_start?: string | null
   final_exit: string
@@ -70,6 +71,7 @@ export interface EntryInput {
   activities?: ServiceActivity[]
   helper_ids?: string[]
   attachments?: Attachment[]
+  overtime_only?: boolean
   is_holiday: boolean
   work_date: string
   normal_entry: string

@@ -91,3 +91,13 @@ test('localização e GLPI são os únicos novos campos opcionais e aceitam text
   assert.match(entryValidationError({...input,glpi:'x'.repeat(101)}),/100/)
   assert.notEqual(entryValidationError({...input,note:'',location:'Local',glpi:'123'}),null)
 })
+
+
+test('somente HE dispensa ponto em dia normal e preserva o restante',()=>{
+ const only={...input,overtime_only:true,normal_entry:'',point_exit:'',overtime_start:'06:00',final_exit:'08:00'}
+ assert.equal(entryValidationError(only),null)
+ assert.equal(entryValues(only).normal_entry,null);assert.equal(entryValues(only).point_exit,null);assert.equal(entryValues(only).is_holiday,false)
+ for(const field of ['note','overtime_start','final_exit','work_date'])assert.ok(entryValidationError({...only,[field]:''}))
+ assert.ok(entryValidationError({...only,overtime_only:false}))
+ assert.ok(entryValidationError({...only,overtime_only:'true'}))
+})

@@ -82,7 +82,7 @@ export const demoApi = {
     if (invalid) throw new Error(invalid)
     const e = record(newId(), current, 0, input.overtime_start, input.final_exit,
       'pending', input.note, input.final_exit_next_day)
-    Object.assign(e, entryValues(input), { workflow_version: 2, participants: (input.helper_ids ?? []).map(id => ({ id, name: demoProfiles.find(p => p.id === id)?.full_name ?? 'Manutentor' })) })
+    Object.assign(e, entryValues(input), { workflow_version: 3, activities: [], participants: (input.helper_ids ?? []).map(id => ({ id, name: demoProfiles.find(p => p.id === id)?.full_name ?? 'Manutentor' })) })
     e.minutes = overtimeMinutes(input.overtime_start, input.final_exit, input.final_exit_next_day)
     entries = [e, ...entries]
     events = [{ id: Date.now(), entry_id: e.id, actor_id: current, action: 'submitted', snapshot: { ...e }, created_at: now }, ...events]

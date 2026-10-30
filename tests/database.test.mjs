@@ -19,6 +19,7 @@ test('Postgres: migração, preservação, autorização, anexos e escalonamento
  alter table storage.objects enable row level security;grant select,insert,delete on storage.objects to authenticated;`)
  for(const name of ['001_initial.sql','002_approval_workflow.sql','003_profile_deletion.sql','20261006034144_overtime_start_required_fields.sql'])await db.exec(file(`supabase/migrations/${name}`))
  await db.exec(`alter table overtime_entries add column is_holiday boolean not null default false;alter table overtime_entries alter column point_exit drop not null;alter table overtime_entries drop constraint overtime_required_information;`)
+ await db.exec(file('tests/fixtures/holiday-required-information.sql'));
  await db.exec(file('tests/fixtures/holiday-validator.sql'));await db.exec(file('tests/fixtures/analyst-baseline.sql'))
  for(let i=0;i<ids.length;i++)await db.query('insert into auth.users(id,email) values($1,$2)',[ids[i],`fixture${i}@example.invalid`])
  await db.exec(`update profiles set active=true,approval_status='approved';update profiles set role='admin',can_approve=true,can_export=true where id='${ids[0]}';update profiles set role='supervisor',can_approve=true,can_export=true where id in ('${ids[1]}','${ids[2]}');update profiles set role='analyst',can_export=true where id='${ids[5]}';update profiles set active=false where id='${ids[6]}';`)
@@ -66,6 +67,37 @@ test('Postgres: migração, preservação, autorização, anexos e escalonamento
  await actor(1);await db.query(`select review_entry($1,'approved',null)`,[fresh]);await actor('service');for(const b of batches)assert.equal(await prepare(b.id),null);ok('aprovação antes do envio cancela lembretes montados')
  await age(withMedia,49);await actor('service');batches=await claim();for(const b of batches){await prepare(b.id);await finish(b.id,'unknown')}assert.equal((await claim()).length,0);ok('falha incerta de provedor não duplica e-mails')
  await db.exec('reset role');await db.exec(migration);assert.equal((await db.query('select he_reminder_delay_hours from profiles where id=$1',[ids[1]])).rows[0].he_reminder_delay_hours,24);ok('reexecutar atualização preserva prazos configurados')
+
+ await db.exec('reset role');
+ const simplified=file('ATUALIZAR-CADASTRO-SIMPLIFICADO.sql');
+ const preserved=(await db.query("select id,to_jsonb(e)-'overtime_only' data from overtime_entries e order by id")).rows;
+ await db.exec(simplified);await db.exec(simplified);
+ assert.deepEqual((await db.query("select id,to_jsonb(e)-'overtime_only' data from overtime_entries e order by id")).rows,preserved);
+ ok('atualização simplificada repetível preserva todas as horas, atividades e timestamps');
+ async function simple(overrides={}) {
+  const x={id:uuid(),date:'2026-10-30',normal:null,point:null,start:'06:00',end:'08:00',next:false,note:'Serviço antes do expediente',holiday:false,location:'Cozinha',glpi:'7000',only:true,...overrides};
+  await db.query(`select submit_entry_v6($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'[]'::jsonb,'{}'::uuid[],'[]'::jsonb,$12)`,[x.id,x.date,x.normal,x.point,x.start,x.end,x.next,x.note,x.holiday,x.location,x.glpi,x.only]);return x.id;
+ }
+ await actor(3);const simpleId=await simple();
+ let simpleRow=(await db.query('select * from overtime_entries where id=$1',[simpleId])).rows[0];
+ assert.equal(simpleRow.minutes,120);assert.equal(simpleRow.is_holiday,false);assert.equal(simpleRow.overtime_only,true);assert.equal(simpleRow.normal_entry,null);assert.equal(simpleRow.point_exit,null);assert.deepEqual(simpleRow.activities,[]);assert.equal(simpleRow.workflow_version,3);
+ await simple({id:simpleId});assert.equal((await db.query('select count(*)::int n from overtime_entries where id=$1',[simpleId])).rows[0].n,1);
+ ok('nova opção aceita HE antes do expediente sem ponto, sem atividades e sem marcar feriado; envio idempotente');
+ for(const invalid of [{only:false},{only:null},{note:' '},{location:''},{glpi:''},{start:null},{end:null},{start:'08:00',end:'08:00'},{next:null}])await assert.rejects(()=>simple(invalid));
+ const normalId=await simple({only:false,normal:'08:00',point:'17:00',start:'18:00',end:'19:00'});
+ assert.equal((await db.query('select minutes from overtime_entries where id=$1',[normalId])).rows[0].minutes,60);
+ await assert.rejects(()=>simple({only:false,normal:'08:00',point:'17:00',start:'06:00'}));
+ const hol=await simple({only:false,holiday:true});assert.equal((await db.query('select is_holiday from overtime_entries where id=$1',[hol])).rows[0].is_holiday,true);
+ const late=await simple({start:'23:00',end:'02:00',next:true});assert.equal((await db.query('select minutes from overtime_entries where id=$1',[late])).rows[0].minutes,180);
+ ok('campos obrigatórios e limite de HE preservados nos modos normal, feriado e somente HE, incluindo virada de dia');
+ await actor(5);await assert.rejects(()=>simple());await actor(6);await assert.rejects(()=>simple());
+ await actor(1);await db.query(`select review_entry($1,'rejected','Corrigir resumo')`,[withMedia]);
+ const historicalActivities=(await db.query('select activities from overtime_entries where id=$1',[withMedia])).rows[0].activities;
+ await actor(4);await assert.rejects(()=>db.query(`select revise_entry_v6($1,'2026-10-30',null,null,'06:00','08:00',false,'Correção',false,'Cozinha','7000','[]','{}','[]',true)`,[withMedia]));
+ await actor(3);await db.query(`select revise_entry_v6($1,'2026-10-30',null,null,'06:00','08:00',false,'Correção',false,'Cozinha','7000','[]','{}',$2,true)`,[withMedia,JSON.stringify([attachment])]);
+ const revised=(await db.query('select * from overtime_entries where id=$1',[withMedia])).rows[0];assert.deepEqual(revised.activities,historicalActivities);assert.equal(revised.overtime_only,true);assert.equal(revised.is_holiday,false);assert.equal(revised.status,'pending');assert.equal(revised.minutes,120);assert.equal(revised.attachments.length,1);
+ ok('correção autorizada preserva atividades e anexos antigos; analista, inativo e colega não cadastram/corrigem');
+ await actor('service');assert.ok(Array.isArray(await claim()));ok('rotina de lembretes permanece funcional após atualização');
  t.diagnostic(`${checks.length} verificações: ${checks.join('; ')}`)
  } finally {await db.close()}
 })
